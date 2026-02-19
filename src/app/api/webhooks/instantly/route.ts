@@ -5,9 +5,11 @@ const EVENT_STATUS_MAP: Record<string, string> = {
   email_sent: "IN_PROGRESS",
   email_opened: "SUCCESS",
   reply_received: "SUCCESS",
+  auto_reply_received: "SUCCESS",
   link_clicked: "SUCCESS",
   email_bounced: "FAILED",
   lead_unsubscribed: "FAILED",
+  account_error: "FAILED",
   campaign_completed: "SUCCESS",
 };
 
@@ -42,7 +44,7 @@ export async function POST(req: NextRequest) {
           where: {
             leadId: lead.id,
             channel: "EMAIL",
-            ...(payload.campaign_id ? { campaignId: payload.campaign_id } : {}),
+            ...(payload.campaign_id ? { providerRef: payload.campaign_id } : {}),
           },
           orderBy: { startedAt: "desc" },
         });

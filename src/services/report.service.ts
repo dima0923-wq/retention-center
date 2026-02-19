@@ -5,6 +5,19 @@ type DateRange = {
   to?: Date;
 };
 
+function safeParseArray(val: unknown): string[] {
+  if (Array.isArray(val)) return val;
+  if (typeof val === "string") {
+    try {
+      const parsed = JSON.parse(val);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
 function dateFilter(range: DateRange) {
   const filter: Record<string, Date> = {};
   if (range.from) filter.gte = range.from;
@@ -38,7 +51,7 @@ export async function getOverviewStats(range: DateRange) {
   const createdAtFilter = dateFilter(range);
   const startedAtFilter = dateFilter(range);
 
-  const [totalLeads, leadsByStatus, activeCampaigns, totalAttempts, successfulAttempts] =
+  const [totalLeads, leadsByStatus, activeCampaigns, totalAttempts, successfulAttempts, totalConversions, conversionRevenue] =
     await Promise.all([
       prisma.lead.count({
         where: createdAtFilter ? { createdAt: createdAtFilter } : undefined,
@@ -57,6 +70,13 @@ export async function getOverviewStats(range: DateRange) {
           status: "SUCCESS",
           ...(startedAtFilter ? { startedAt: startedAtFilter } : {}),
         },
+      }),
+      prisma.conversion.count({
+        where: createdAtFilter ? { createdAt: createdAtFilter } : undefined,
+      }),
+      prisma.conversion.aggregate({
+        _sum: { revenue: true },
+        where: createdAtFilter ? { createdAt: createdAtFilter } : undefined,
       }),
     ]);
 
@@ -79,6 +99,8 @@ export async function getOverviewStats(range: DateRange) {
     successfulAttempts,
     conversionRate: Math.round(conversionRate * 10) / 10,
     successRate: Math.round(successRate * 10) / 10,
+    totalConversions,
+    totalRevenue: conversionRevenue._sum.revenue ?? 0,
   };
 
   setCache(cacheKey, result);
@@ -91,13 +113,20 @@ export async function getChannelPerformance(range: DateRange) {
   if (cached) return cached;
 
   const startedAtFilter = dateFilter(range);
+  const where = startedAtFilter ? { startedAt: startedAtFilter } : undefined;
 
-  const channelStats = await prisma.contactAttempt.groupBy({
-    by: ["channel", "status"],
-    _count: true,
-    _avg: { duration: true, cost: true },
-    where: startedAtFilter ? { startedAt: startedAtFilter } : undefined,
-  });
+  const [channelStatusStats, channelAvgStats] = await Promise.all([
+    prisma.contactAttempt.groupBy({
+      by: ["channel", "status"],
+      _count: true,
+      where,
+    }),
+    prisma.contactAttempt.groupBy({
+      by: ["channel"],
+      _avg: { duration: true, cost: true },
+      where,
+    }),
+  ]);
 
   const channels: Record<
     string,
@@ -111,7 +140,7 @@ export async function getChannelPerformance(range: DateRange) {
     }
   > = {};
 
-  for (const row of channelStats) {
+  for (const row of channelStatusStats) {
     if (!channels[row.channel]) {
       channels[row.channel] = {
         channel: row.channel,
@@ -126,11 +155,12 @@ export async function getChannelPerformance(range: DateRange) {
     if (row.status === "SUCCESS") {
       channels[row.channel].successful += row._count;
     }
-    if (row._avg.duration !== null) {
-      channels[row.channel].avgDuration = row._avg.duration;
-    }
-    if (row._avg.cost !== null) {
-      channels[row.channel].avgCost = Number(row._avg.cost);
+  }
+
+  for (const row of channelAvgStats) {
+    if (channels[row.channel]) {
+      channels[row.channel].avgDuration = row._avg.duration ?? null;
+      channels[row.channel].avgCost = row._avg.cost !== null ? Number(row._avg.cost) : null;
     }
   }
 
@@ -174,7 +204,7 @@ export async function getCampaignComparison(range: DateRange) {
       id: c.id,
       name: c.name,
       status: c.status,
-      channels: typeof c.channels === "string" ? JSON.parse(c.channels) : c.channels,
+      channels: safeParseArray(c.channels),
       totalLeads,
       completed,
       conversionRate,
@@ -193,21 +223,21 @@ export async function getTimeline(range: DateRange) {
   const from = range.from ?? new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   const to = range.to ?? new Date();
 
-  // Get leads per day
-  const leads = await prisma.lead.groupBy({
-    by: ["createdAt"],
-    _count: true,
-    where: { createdAt: { gte: from, lte: to } },
-    orderBy: { createdAt: "asc" },
-  });
-
-  // Get attempts per day
-  const attempts = await prisma.contactAttempt.groupBy({
-    by: ["startedAt"],
-    _count: true,
-    where: { startedAt: { gte: from, lte: to } },
-    orderBy: { startedAt: "asc" },
-  });
+  // Fetch raw records with just the date fields we need
+  const [leads, attempts, conversions] = await Promise.all([
+    prisma.lead.findMany({
+      where: { createdAt: { gte: from, lte: to } },
+      select: { createdAt: true },
+    }),
+    prisma.contactAttempt.findMany({
+      where: { startedAt: { gte: from, lte: to } },
+      select: { startedAt: true },
+    }),
+    prisma.conversion.findMany({
+      where: { createdAt: { gte: from, lte: to } },
+      select: { createdAt: true },
+    }),
+  ]);
 
   // Aggregate by date
   const dateMap = new Map<
@@ -225,13 +255,19 @@ export async function getTimeline(range: DateRange) {
   for (const row of leads) {
     const key = row.createdAt.toISOString().slice(0, 10);
     const entry = dateMap.get(key);
-    if (entry) entry.leads += row._count;
+    if (entry) entry.leads++;
   }
 
   for (const row of attempts) {
     const key = row.startedAt.toISOString().slice(0, 10);
     const entry = dateMap.get(key);
-    if (entry) entry.attempts += row._count;
+    if (entry) entry.attempts++;
+  }
+
+  for (const row of conversions) {
+    const key = row.createdAt.toISOString().slice(0, 10);
+    const entry = dateMap.get(key);
+    if (entry) entry.conversions++;
   }
 
   const result = Array.from(dateMap.values());

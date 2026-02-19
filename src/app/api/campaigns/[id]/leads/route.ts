@@ -21,6 +21,17 @@ export async function POST(req: NextRequest, context: RouteContext) {
   try {
     const { id } = await context.params;
     const body = await req.json();
+
+    // Handle sync_instantly action
+    if (body.action === "sync_instantly") {
+      const result = await CampaignService.pushLeadsToInstantly(id);
+      if ("error" in result) {
+        return NextResponse.json({ error: result.error }, { status: 400 });
+      }
+      return NextResponse.json(result);
+    }
+
+    // Default: assign leads
     const parsed = campaignLeadsSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });

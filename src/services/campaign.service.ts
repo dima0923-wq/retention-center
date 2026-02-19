@@ -7,6 +7,7 @@ import type {
   CampaignListResponse,
   CampaignStats,
 } from "@/types";
+import { ChannelRouterService } from "./channel/channel-router.service";
 
 function parseCampaign<T extends { channels: string }>(campaign: T): T & { channels: string[] } {
   return {
@@ -24,6 +25,17 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
 
 export class CampaignService {
   static async create(data: CampaignCreateInput) {
+    const meta: Record<string, unknown> = {};
+    if (data.instantlySync) meta.instantlySync = true;
+    if (data.emailSequence?.length) meta.emailSequence = data.emailSequence;
+    // Schedule & rate limiting config
+    if (data.contactHoursStart) meta.contactHoursStart = data.contactHoursStart;
+    if (data.contactHoursEnd) meta.contactHoursEnd = data.contactHoursEnd;
+    if (data.contactDays?.length) meta.contactDays = data.contactDays;
+    if (data.maxContactsPerDay) meta.maxContactsPerDay = data.maxContactsPerDay;
+    if (data.delayBetweenChannels) meta.delayBetweenChannels = data.delayBetweenChannels;
+    if (data.autoAssign) meta.autoAssign = data.autoAssign;
+
     const campaign = await prisma.campaign.create({
       data: {
         name: data.name,
@@ -31,6 +43,7 @@ export class CampaignService {
         channels: JSON.stringify(data.channels),
         startDate: data.startDate ? new Date(data.startDate) : undefined,
         endDate: data.endDate ? new Date(data.endDate) : undefined,
+        meta: Object.keys(meta).length > 0 ? JSON.stringify(meta) : undefined,
       },
       include: { _count: { select: { campaignLeads: true } } },
     });
@@ -97,7 +110,20 @@ export class CampaignService {
         _count: { select: { campaignLeads: true } },
       },
     });
-    return campaign ? parseCampaign(campaign) : null;
+    if (!campaign) return null;
+    const parsed = parseCampaign(campaign);
+    const meta = campaign.meta ? JSON.parse(campaign.meta as string) : {};
+    return {
+      ...parsed,
+      instantlySync: meta.instantlySync ?? false,
+      emailSequence: meta.emailSequence ?? [],
+      contactHoursStart: meta.contactHoursStart ?? "",
+      contactHoursEnd: meta.contactHoursEnd ?? "",
+      contactDays: meta.contactDays ?? [],
+      maxContactsPerDay: meta.maxContactsPerDay ?? undefined,
+      delayBetweenChannels: meta.delayBetweenChannels ?? undefined,
+      autoAssign: meta.autoAssign ?? undefined,
+    };
   }
 
   static async update(id: string, data: CampaignUpdateInput) {
@@ -114,6 +140,26 @@ export class CampaignService {
       }
     }
 
+    // Merge meta fields
+    let metaJson: string | undefined;
+    const scheduleFields = ["contactHoursStart", "contactHoursEnd", "contactDays", "maxContactsPerDay", "delayBetweenChannels"] as const;
+    const hasMetaUpdates = data.instantlySync !== undefined || data.emailSequence !== undefined ||
+      (data as Record<string, unknown>).autoAssign !== undefined ||
+      scheduleFields.some((f) => (data as Record<string, unknown>)[f] !== undefined);
+    if (hasMetaUpdates) {
+      const existingMeta = campaign.meta ? JSON.parse(campaign.meta as string) : {};
+      if (data.instantlySync !== undefined) existingMeta.instantlySync = data.instantlySync;
+      if (data.emailSequence !== undefined) existingMeta.emailSequence = data.emailSequence;
+      for (const f of scheduleFields) {
+        const val = (data as Record<string, unknown>)[f];
+        if (val !== undefined) existingMeta[f] = val;
+      }
+      if ((data as Record<string, unknown>).autoAssign !== undefined) {
+        existingMeta.autoAssign = (data as Record<string, unknown>).autoAssign;
+      }
+      metaJson = JSON.stringify(existingMeta);
+    }
+
     const updated = await prisma.campaign.update({
       where: { id },
       data: {
@@ -123,6 +169,7 @@ export class CampaignService {
         startDate: data.startDate ? new Date(data.startDate) : undefined,
         endDate: data.endDate ? new Date(data.endDate) : undefined,
         status: data.status,
+        ...(metaJson !== undefined && { meta: metaJson }),
       },
       include: { _count: { select: { campaignLeads: true } } },
     });
@@ -199,11 +246,27 @@ export class CampaignService {
   }
 
   static async start(id: string) {
-    return this.update(id, { status: "ACTIVE" });
+    const campaign = await this.update(id, { status: "ACTIVE" });
+    if (!campaign) return null;
+
+    // Queue leads for contact via channel-router (fire-and-forget)
+    ChannelRouterService.queueCampaignLeads(id).catch((err) => {
+      console.error(`Failed to queue leads for campaign ${id}:`, err);
+    });
+
+    return campaign;
   }
 
   static async pause(id: string) {
-    return this.update(id, { status: "PAUSED" });
+    const campaign = await this.update(id, { status: "PAUSED" });
+    if (!campaign) return null;
+
+    // Cancel pending contact attempts
+    ChannelRouterService.cancelPendingAttempts(id).catch((err) => {
+      console.error(`Failed to cancel pending attempts for campaign ${id}:`, err);
+    });
+
+    return campaign;
   }
 
   static async syncToInstantly(campaignId: string): Promise<{ instantlyCampaignId: string } | { error: string }> {
@@ -226,9 +289,11 @@ export class CampaignService {
     }
 
     const data = (await res.json()) as { id: string };
+    const existingMeta = campaign.meta ? JSON.parse(campaign.meta as string) : {};
+    existingMeta.instantlyCampaignId = data.id;
     await prisma.campaign.update({
       where: { id: campaignId },
-      data: { meta: JSON.stringify({ instantlyCampaignId: data.id }) },
+      data: { meta: JSON.stringify(existingMeta) },
     });
 
     return { instantlyCampaignId: data.id };
@@ -303,11 +368,21 @@ export class CampaignService {
     return { stats };
   }
 
-  static async getStats(id: string): Promise<CampaignStats> {
-    const [totalLeads, byStatusRaw] = await Promise.all([
+  static async getStats(id: string): Promise<CampaignStats & { attempts?: Record<string, unknown> }> {
+    const [totalLeads, byStatusRaw, attemptsByStatus, attemptsByChannel] = await Promise.all([
       prisma.campaignLead.count({ where: { campaignId: id } }),
       prisma.campaignLead.groupBy({
         by: ["status"],
+        where: { campaignId: id },
+        _count: true,
+      }),
+      prisma.contactAttempt.groupBy({
+        by: ["status"],
+        where: { campaignId: id },
+        _count: true,
+      }),
+      prisma.contactAttempt.groupBy({
+        by: ["channel"],
         where: { campaignId: id },
         _count: true,
       }),
@@ -318,9 +393,28 @@ export class CampaignService {
       byStatus[row.status] = row._count;
     }
 
+    const attemptStatus: Record<string, number> = {};
+    for (const row of attemptsByStatus) {
+      attemptStatus[row.status] = row._count;
+    }
+
+    const channelBreakdown: Record<string, number> = {};
+    for (const row of attemptsByChannel) {
+      channelBreakdown[row.channel] = row._count;
+    }
+
     const completed = byStatus["COMPLETED"] ?? 0;
     const conversionRate = totalLeads > 0 ? (completed / totalLeads) * 100 : 0;
 
-    return { totalLeads, byStatus, conversionRate };
+    return {
+      totalLeads,
+      byStatus,
+      conversionRate,
+      attempts: {
+        byStatus: attemptStatus,
+        byChannel: channelBreakdown,
+        total: Object.values(attemptStatus).reduce((a, b) => a + b, 0),
+      },
+    };
   }
 }

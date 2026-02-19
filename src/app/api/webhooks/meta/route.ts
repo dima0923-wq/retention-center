@@ -1,5 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { LeadService } from "@/services/lead.service";
+import { LeadRouterService } from "@/services/lead-router.service";
+
+function extractFieldData(fieldData: Array<{ name: string; values: string[] }> | undefined): Record<string, string> {
+  const result: Record<string, string> = {};
+  if (!Array.isArray(fieldData)) return result;
+  for (const field of fieldData) {
+    if (field.name && Array.isArray(field.values) && field.values.length > 0) {
+      result[field.name] = field.values[0];
+    }
+  }
+  return result;
+}
 
 export async function GET(req: NextRequest) {
   const searchParams = req.nextUrl.searchParams;
@@ -33,22 +45,39 @@ export async function POST(req: NextRequest) {
         const leadData = change.value;
         if (!leadData) continue;
 
-        await prisma.lead.create({
-          data: {
-            firstName: leadData.first_name ?? leadData.full_name?.split(" ")[0] ?? "Unknown",
-            lastName: leadData.last_name ?? leadData.full_name?.split(" ").slice(1).join(" ") ?? "",
-            email: leadData.email ?? undefined,
-            phone: leadData.phone_number ?? undefined,
-            source: "META",
-            externalId: leadData.leadgen_id ?? leadData.id ?? undefined,
-            meta: leadData,
-          },
+        // Meta Lead Ads can send field_data array or flat fields
+        const fields = extractFieldData(leadData.field_data);
+        const firstName = fields.first_name ?? leadData.first_name ?? leadData.full_name?.split(" ")[0] ?? "Unknown";
+        const lastName = fields.last_name ?? leadData.last_name ?? leadData.full_name?.split(" ").slice(1).join(" ") ?? "";
+        const email = fields.email ?? leadData.email ?? undefined;
+        const phone = fields.phone_number ?? fields.phone ?? leadData.phone_number ?? undefined;
+
+        // Extract UTM params
+        const subId = fields.sub_id ?? leadData.sub_id ?? undefined;
+        const clickId = fields.click_id ?? leadData.click_id ?? undefined;
+
+        const result = await LeadService.create({
+          firstName,
+          lastName,
+          email,
+          phone,
+          source: "META",
+          externalId: clickId ?? subId ?? leadData.leadgen_id ?? leadData.id ?? undefined,
+          meta: { ...leadData, sub_id: subId, click_id: clickId },
         });
+
+        // Auto-assign to matching campaigns
+        if (!result.deduplicated) {
+          LeadRouterService.routeNewLead(result.lead.id).catch((err) => {
+            console.error("Lead auto-routing failed:", err);
+          });
+        }
       }
     }
 
     return NextResponse.json({ received: true });
-  } catch {
+  } catch (error) {
+    console.error("Meta webhook error:", error);
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
 }

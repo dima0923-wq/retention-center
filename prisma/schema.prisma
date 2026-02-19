@@ -106,3 +106,56 @@ model IntegrationConfig {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+model Conversion {
+  id            String   @id @default(cuid())
+  leadId        String?
+  campaignId    String?
+  channel       String?
+  revenue       Float    @default(0)
+  status        String   @default("lead")
+  subId         String?
+  clickId       String?
+  source        String   @default("keitaro")
+  postbackData  String?
+  contactAttemptId String?
+  createdAt     DateTime @default(now())
+
+  @@index([leadId])
+  @@index([campaignId])
+  @@index([subId])
+  @@index([clickId])
+  @@index([source])
+}
+
+model ConversionRule {
+  id             String   @id @default(cuid())
+  channel        String
+  metric         String
+  value          String
+  conversionRate Float    @default(0)
+  sampleSize     Int      @default(0)
+  confidence     Float    @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([channel])
+  @@index([metric])
+}
+
+model ABTest {
+  id          String    @id @default(cuid())
+  campaignId  String
+  channel     String
+  variantA    String
+  variantB    String
+  status      String    @default("RUNNING")
+  winnerId    String?
+  startedAt   DateTime  @default(now())
+  endedAt     DateTime?
+  statsA      String    @default("{}")
+  statsB      String    @default("{}")
+
+  @@index([campaignId])
+  @@index([status])
+}

@@ -22,8 +22,12 @@ export function ExportButton({
         headers
           .map((h) => {
             const val = row[h];
-            const str = val === null || val === undefined ? "" : String(val);
-            return str.includes(",") || str.includes('"')
+            const str = val === null || val === undefined
+              ? ""
+              : Array.isArray(val)
+                ? val.join("; ")
+                : String(val);
+            return str.includes(",") || str.includes('"') || str.includes("\n")
               ? `"${str.replace(/"/g, '""')}"`
               : str;
           })

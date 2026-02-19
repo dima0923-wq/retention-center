@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Users, Megaphone, TrendingUp, PhoneCall, Zap, CheckCircle } from "lucide-react";
+import { Users, Megaphone, TrendingUp, PhoneCall, Zap, CheckCircle, DollarSign, Target } from "lucide-react";
 import { StatsCard } from "@/components/reports/StatsCard";
 import {
   DateRangePicker,
@@ -24,6 +24,8 @@ type OverviewStats = {
   successfulAttempts: number;
   conversionRate: number;
   successRate: number;
+  totalConversions: number;
+  totalRevenue: number;
 };
 
 type ChannelData = {
@@ -127,7 +129,7 @@ export default function ReportsPage() {
       ) : (
         <>
           {/* Stats cards */}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <StatsCard
               title="Total Leads"
               value={overview?.totalLeads ?? 0}
@@ -157,6 +159,16 @@ export default function ReportsPage() {
               title="Success Rate"
               value={`${overview?.successRate ?? 0}%`}
               icon={Zap}
+            />
+            <StatsCard
+              title="Conversions"
+              value={overview?.totalConversions ?? 0}
+              icon={Target}
+            />
+            <StatsCard
+              title="Revenue"
+              value={`$${(overview?.totalRevenue ?? 0).toLocaleString()}`}
+              icon={DollarSign}
             />
           </div>
 

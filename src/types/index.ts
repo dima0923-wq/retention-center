@@ -43,6 +43,7 @@ export type LeadListResponse = {
 
 export type LeadWithAttempts = Lead & {
   contactAttempts: ContactAttempt[];
+  campaignLeads?: (CampaignLead & { campaign: Campaign })[];
 };
 
 export type LeadStats = {
@@ -59,12 +60,34 @@ export type CampaignFilters = {
   dateTo?: string;
 };
 
+export type EmailSequenceStep = {
+  subject: string;
+  body: string;
+  delayValue: number;
+  delayUnit: "hours" | "days";
+};
+
+export type AutoAssignConfig = {
+  enabled: boolean;
+  sources?: ("META" | "API" | "MANUAL" | "BULK")[];
+  maxLeads?: number;
+  executionMode?: "parallel" | "sequential";
+};
+
 export type CampaignCreateInput = {
   name: string;
   description?: string;
   channels: string[];
   startDate?: string;
   endDate?: string;
+  instantlySync?: boolean;
+  emailSequence?: EmailSequenceStep[];
+  contactHoursStart?: string;
+  contactHoursEnd?: string;
+  contactDays?: number[];
+  maxContactsPerDay?: number;
+  delayBetweenChannels?: number;
+  autoAssign?: AutoAssignConfig;
 };
 
 export type CampaignUpdateInput = {
@@ -74,6 +97,14 @@ export type CampaignUpdateInput = {
   startDate?: string;
   endDate?: string;
   status?: string;
+  instantlySync?: boolean;
+  emailSequence?: EmailSequenceStep[];
+  contactHoursStart?: string;
+  contactHoursEnd?: string;
+  contactDays?: number[];
+  maxContactsPerDay?: number;
+  delayBetweenChannels?: number;
+  autoAssign?: AutoAssignConfig;
 };
 
 export type CampaignListResponse = {

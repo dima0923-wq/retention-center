@@ -39,7 +39,8 @@ async function getConfig(): Promise<InstantlyConfig | null> {
     where: { provider: "instantly" },
   });
   if (!config || !config.isActive) return null;
-  return config.config as unknown as InstantlyConfig;
+  const raw = config.config as string;
+  return JSON.parse(raw) as InstantlyConfig;
 }
 
 async function instantlyFetch(
@@ -327,7 +328,7 @@ export class InstantlyService {
         completedAt: ["SUCCESS", "FAILED"].includes(newStatus)
           ? new Date()
           : undefined,
-        result: JSON.parse(JSON.stringify(data)),
+        result: JSON.stringify(data),
       },
     });
   }

@@ -54,7 +54,11 @@ export function IntegrationCard({
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (data && data.config) {
-          setConfig(data.config as Record<string, string>);
+          const parsed =
+            typeof data.config === "string"
+              ? JSON.parse(data.config)
+              : data.config;
+          setConfig(parsed as Record<string, string>);
           setIsActive(data.isActive);
           setConnectionOk(data.isActive ? true : null);
         }

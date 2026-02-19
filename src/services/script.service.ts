@@ -9,6 +9,17 @@ const TEMPLATE_VARIABLES: Record<string, string> = {
   companyName: "Acme Corp",
 };
 
+function parseVapiConfig<T extends { vapiConfig: string | null }>(
+  script: T
+): T & { vapiConfig: Record<string, unknown> | null } {
+  if (!script.vapiConfig) return { ...script, vapiConfig: null };
+  try {
+    return { ...script, vapiConfig: JSON.parse(script.vapiConfig) };
+  } catch {
+    return { ...script, vapiConfig: null };
+  }
+}
+
 export class ScriptService {
   static async create(data: {
     name: string;
@@ -18,7 +29,7 @@ export class ScriptService {
     campaignId?: string;
     isDefault?: boolean;
   }) {
-    return prisma.script.create({
+    const script = await prisma.script.create({
       data: {
         name: data.name,
         type: data.type,
@@ -28,6 +39,7 @@ export class ScriptService {
         isDefault: data.isDefault ?? false,
       },
     });
+    return parseVapiConfig(script);
   }
 
   static async list(filters?: {
@@ -42,18 +54,21 @@ export class ScriptService {
       where.name = { contains: filters.search };
     }
 
-    return prisma.script.findMany({
+    const scripts = await prisma.script.findMany({
       where,
       orderBy: { createdAt: "desc" },
       include: { campaign: true },
     });
+    return scripts.map(parseVapiConfig);
   }
 
   static async getById(id: string) {
-    return prisma.script.findUnique({
+    const script = await prisma.script.findUnique({
       where: { id },
       include: { campaign: true },
     });
+    if (!script) return null;
+    return parseVapiConfig(script);
   }
 
   static async update(
@@ -66,7 +81,7 @@ export class ScriptService {
       isDefault?: boolean;
     }
   ) {
-    return prisma.script.update({
+    const script = await prisma.script.update({
       where: { id },
       data: {
         ...(data.name !== undefined && { name: data.name }),
@@ -76,6 +91,7 @@ export class ScriptService {
         ...(data.isDefault !== undefined && { isDefault: data.isDefault }),
       },
     });
+    return parseVapiConfig(script);
   }
 
   static async delete(id: string) {
@@ -94,7 +110,7 @@ export class ScriptService {
     const script = await prisma.script.findUnique({ where: { id } });
     if (!script) return null;
 
-    return prisma.script.create({
+    const copy = await prisma.script.create({
       data: {
         name: `${script.name} (Copy)`,
         type: script.type,
@@ -104,6 +120,7 @@ export class ScriptService {
         isDefault: false,
       },
     });
+    return parseVapiConfig(copy);
   }
 
   static renderTemplate(template: string, variables?: Record<string, string>): string {

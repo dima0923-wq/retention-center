@@ -309,15 +309,30 @@ export async function sendSmsToLead(
   return { attemptId: attempt.id, providerRef: result.providerRef };
 }
 
-// Legacy SmsService class kept for webhook handling and backward compatibility
+// SmsService class used by channel-router (no attempt creation) and webhook handling
 export class SmsService {
+  /**
+   * Send SMS using active provider. Does NOT create a ContactAttempt —
+   * the caller (channel-router) is responsible for attempt lifecycle.
+   */
   static async sendSms(
     lead: Lead,
     script: Script
   ): Promise<{ providerRef: string } | { error: string }> {
+    const integrationConfig = await prisma.integrationConfig.findFirst({
+      where: { type: "SMS", isActive: true },
+    });
+    if (!integrationConfig) return { error: "No active SMS integration configured" };
+
+    const smsConfig = buildSmsConfig(integrationConfig);
+    const provider = createSmsProvider(smsConfig);
+
+    if (!lead.phone) return { error: "Lead has no phone number" };
+
     const text = script.content ? replaceVariables(script.content, lead) : "";
-    const result = await sendSmsToLead(lead.id, text, script.id);
-    if ("error" in result) return { error: result.error };
+    const result = await provider.sendSms(lead.phone, text);
+
+    if (!result.success) return { error: result.error ?? "Send failed" };
     return { providerRef: result.providerRef };
   }
 
@@ -365,7 +380,7 @@ export class SmsService {
         completedAt: ["SUCCESS", "FAILED"].includes(newStatus)
           ? new Date()
           : undefined,
-        result: JSON.parse(JSON.stringify(data)),
+        result: JSON.stringify(data),
       },
     });
   }

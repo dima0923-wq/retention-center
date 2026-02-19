@@ -44,6 +44,14 @@ export const emailSequenceStepSchema = z.object({
   delayUnit: z.enum(["hours", "days"]),
 });
 
+// Auto-assignment schema
+export const autoAssignSchema = z.object({
+  enabled: z.boolean(),
+  sources: z.array(z.enum(["META", "API", "MANUAL", "BULK"])).optional(),
+  maxLeads: z.number().int().min(1).optional(),
+  executionMode: z.enum(["parallel", "sequential"]).optional(),
+});
+
 // Campaign validators
 export const campaignCreateSchema = z.object({
   name: z.string().min(1, "Campaign name is required").max(200),
@@ -53,6 +61,14 @@ export const campaignCreateSchema = z.object({
   endDate: z.string().optional(),
   instantlySync: z.boolean().optional(),
   emailSequence: z.array(emailSequenceStepSchema).optional(),
+  // Schedule & rate limiting
+  contactHoursStart: z.string().optional(),
+  contactHoursEnd: z.string().optional(),
+  contactDays: z.array(z.number().int().min(0).max(6)).optional(),
+  maxContactsPerDay: z.number().int().min(1).optional(),
+  delayBetweenChannels: z.number().min(0).optional(),
+  // Auto-assignment
+  autoAssign: autoAssignSchema.optional(),
 });
 
 export const campaignUpdateSchema = z.object({
@@ -62,6 +78,16 @@ export const campaignUpdateSchema = z.object({
   startDate: z.string().optional(),
   endDate: z.string().optional(),
   status: z.enum(["DRAFT", "ACTIVE", "PAUSED", "COMPLETED"]).optional(),
+  instantlySync: z.boolean().optional(),
+  emailSequence: z.array(emailSequenceStepSchema).optional(),
+  // Schedule & rate limiting
+  contactHoursStart: z.string().optional(),
+  contactHoursEnd: z.string().optional(),
+  contactDays: z.array(z.number().int().min(0).max(6)).optional(),
+  maxContactsPerDay: z.number().int().min(1).optional(),
+  delayBetweenChannels: z.number().min(0).optional(),
+  // Auto-assignment
+  autoAssign: autoAssignSchema.optional(),
 });
 
 export const campaignFiltersSchema = z.object({

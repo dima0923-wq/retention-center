@@ -4,6 +4,7 @@ import { Phone, Globe } from "lucide-react";
 import { IntegrationCard } from "@/components/integrations/IntegrationCard";
 import { SmsIntegrationCard } from "@/components/integrations/SmsIntegrationCard";
 import { InstantlyIntegrationCard } from "@/components/integrations/InstantlyIntegrationCard";
+import { KeitaroIntegrationCard } from "@/components/integrations/KeitaroIntegrationCard";
 import { WebhookUrlDisplay } from "@/components/integrations/WebhookUrlDisplay";
 import {
   Card,
@@ -62,6 +63,8 @@ export default function IntegrationsPage() {
         <SmsIntegrationCard />
 
         <InstantlyIntegrationCard />
+
+        <KeitaroIntegrationCard />
 
         <Card>
           <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-3">

@@ -20,6 +20,7 @@ type VapiWebhookData = {
     duration?: number;
     cost?: number;
     transcript?: string;
+    messages?: Array<{ role: string; content: string }>;
   };
 };
 
@@ -28,7 +29,14 @@ async function getConfig(): Promise<VapiConfig | null> {
     where: { provider: "vapi" },
   });
   if (!config || !config.isActive) return null;
-  return config.config as unknown as VapiConfig;
+  try {
+    const parsed = typeof config.config === "string"
+      ? JSON.parse(config.config)
+      : config.config;
+    return parsed as VapiConfig;
+  } catch {
+    return null;
+  }
 }
 
 export class VapiService {
@@ -50,7 +58,10 @@ export class VapiService {
     };
 
     if (script.vapiConfig) {
-      Object.assign(body, script.vapiConfig);
+      const parsedVapiConfig = typeof script.vapiConfig === "string"
+        ? JSON.parse(script.vapiConfig)
+        : script.vapiConfig;
+      Object.assign(body, parsedVapiConfig);
     }
 
     const res = await fetch(`${baseUrl}/call/phone`, {
@@ -98,6 +109,19 @@ export class VapiService {
     };
   }
 
+  static extractKeywords(transcript: string): string[] {
+    const KEYWORDS = [
+      "interested", "not interested", "callback", "call back",
+      "busy", "wrong number", "voicemail", "appointment",
+      "schedule", "price", "cost", "buy", "purchase",
+      "yes", "no", "maybe", "think about it",
+      "cancel", "refund", "complaint", "manager",
+      "email", "send info", "more information",
+    ];
+    const lower = transcript.toLowerCase();
+    return KEYWORDS.filter((kw) => lower.includes(kw));
+  }
+
   static async handleCallback(data: VapiWebhookData) {
     if (!data.call?.id) return;
 
@@ -115,11 +139,38 @@ export class VapiService {
       if (data.call.duration) updateData.duration = data.call.duration;
       if (data.call.cost != null)
         updateData.cost = data.call.cost;
-      updateData.result = data.call;
+
+      const resultObj: Record<string, unknown> = {
+        callId: data.call.id,
+        status: data.call.status,
+        duration: data.call.duration,
+        cost: data.call.cost,
+      };
+
+      if (data.call.transcript) {
+        resultObj.transcript = data.call.transcript;
+        resultObj.keywords = this.extractKeywords(data.call.transcript);
+      }
+
+      if (data.call.messages) {
+        resultObj.messages = data.call.messages;
+        if (!resultObj.transcript) {
+          const fullText = data.call.messages
+            .map((m) => m.content)
+            .join(" ");
+          resultObj.keywords = this.extractKeywords(fullText);
+        }
+      }
+
+      updateData.result = JSON.stringify(resultObj);
     } else if (data.call.status === "failed" || data.call.status === "no-answer") {
       updateData.status = data.call.status === "no-answer" ? "NO_ANSWER" : "FAILED";
       updateData.completedAt = new Date();
-      updateData.result = data.call;
+      updateData.result = JSON.stringify({
+        callId: data.call.id,
+        status: data.call.status,
+        transcript: data.call.transcript ?? null,
+      });
     } else if (data.call.status === "in-progress") {
       updateData.status = "IN_PROGRESS";
     }

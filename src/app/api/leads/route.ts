@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { LeadService } from "@/services/lead.service";
+import { CampaignService } from "@/services/campaign.service";
+import { LeadRouterService } from "@/services/lead-router.service";
 import { leadCreateSchema, leadFiltersSchema } from "@/lib/validators";
 
 export async function GET(request: NextRequest) {
@@ -32,7 +34,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const parsed = leadCreateSchema.safeParse(body);
+    const { campaignId, ...leadBody } = body;
+    const parsed = leadCreateSchema.safeParse(leadBody);
 
     if (!parsed.success) {
       return NextResponse.json(
@@ -42,6 +45,21 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await LeadService.create(parsed.data);
+
+    // If campaignId provided, assign lead to that campaign and queue contact
+    if (campaignId && typeof campaignId === "string") {
+      await CampaignService.assignLeads(campaignId, [result.lead.id]);
+      if (!result.deduplicated) {
+        LeadRouterService.queueAllChannels(result.lead.id, campaignId).catch((err) => {
+          console.error("Failed to queue channels:", err);
+        });
+      }
+    } else if (!result.deduplicated) {
+      // Auto-route to matching campaigns
+      LeadRouterService.routeNewLead(result.lead.id).catch((err) => {
+        console.error("Lead auto-routing failed:", err);
+      });
+    }
 
     return NextResponse.json(
       {

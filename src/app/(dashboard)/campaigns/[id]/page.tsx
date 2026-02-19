@@ -11,7 +11,8 @@ import { CampaignLeadTable } from "@/components/campaigns/CampaignLeadTable";
 import { InstantlyStats, InstantlyStatsData } from "@/components/campaigns/InstantlyStats";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { Pencil, Play, Pause, CheckCircle, Users, TrendingUp, BarChart3 } from "lucide-react";
+import { Pencil, Play, Pause, CheckCircle, Users, TrendingUp, BarChart3, Zap } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 type CampaignDetail = {
   id: string;
@@ -36,6 +37,8 @@ type CampaignDetail = {
       status: string;
     };
   }>;
+  meta?: string | null;
+  autoAssign?: { enabled: boolean; sources?: string[]; maxLeads?: number; executionMode?: string };
   scripts: Array<{ id: string; name: string; type: string }>;
   _count: { campaignLeads: number };
 };
@@ -57,6 +60,21 @@ export default function CampaignDetailPage() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [instantlyLoading, setInstantlyLoading] = useState(false);
+
+  const fetchInstantlyStats = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/campaigns/${id}/stats?source=instantly`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.instantly) {
+          setInstantlyStats(data.instantly);
+          setInstantlyStatus(data.instantlyStatus ?? "not_synced");
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch Instantly stats:", err);
+    }
+  }, [id]);
 
   const fetchCampaign = useCallback(async () => {
     try {
@@ -80,22 +98,7 @@ export default function CampaignDetailPage() {
     } finally {
       setLoading(false);
     }
-  }, [id, router]);
-
-  const fetchInstantlyStats = async () => {
-    try {
-      const res = await fetch(`/api/campaigns/${id}/stats?source=instantly`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.instantly) {
-          setInstantlyStats(data.instantly);
-          setInstantlyStatus(data.instantlyStatus ?? "not_synced");
-        }
-      }
-    } catch (err) {
-      console.error("Failed to fetch Instantly stats:", err);
-    }
-  };
+  }, [id, router, fetchInstantlyStats]);
 
   useEffect(() => {
     fetchCampaign();
@@ -225,6 +228,7 @@ export default function CampaignDetailPage() {
   }
 
   const hasEmailChannel = campaign.channels?.includes("EMAIL");
+  const autoAssign = campaign.autoAssign;
 
   return (
     <div className="space-y-6">
@@ -233,6 +237,14 @@ export default function CampaignDetailPage() {
           <div className="flex items-center gap-3">
             <h2 className="text-2xl font-bold tracking-tight">{campaign.name}</h2>
             <CampaignStatusBadge status={campaign.status} />
+            {autoAssign?.enabled ? (
+              <Badge variant="outline" className="gap-1">
+                <Zap className="h-3 w-3" />
+                Auto-assigning {autoAssign.sources?.length ? autoAssign.sources.join(", ") : "all"} leads
+              </Badge>
+            ) : (
+              <Badge variant="secondary" className="gap-1">Manual assignment only</Badge>
+            )}
           </div>
           {campaign.description && (
             <p className="text-muted-foreground">{campaign.description}</p>

@@ -39,7 +39,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
 
   const updateData: Record<string, unknown> = {};
-  if (parsed.data.config !== undefined) updateData.config = parsed.data.config;
+  if (parsed.data.config !== undefined) updateData.config = JSON.stringify(parsed.data.config);
   if (parsed.data.isActive !== undefined) updateData.isActive = parsed.data.isActive;
 
   const updated = await prisma.integrationConfig.update({

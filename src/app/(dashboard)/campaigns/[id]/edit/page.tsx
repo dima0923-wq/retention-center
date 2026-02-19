@@ -18,6 +18,7 @@ export default function EditCampaignPage() {
     endDate?: string | null;
     instantlySync?: boolean;
     emailSequence?: Array<{ subject: string; body: string; delayValue: number; delayUnit: "hours" | "days" }>;
+    autoAssign?: { enabled: boolean; sources?: ("META" | "API" | "MANUAL" | "BULK")[]; maxLeads?: number; executionMode?: "parallel" | "sequential" };
   } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -36,6 +37,9 @@ export default function EditCampaignPage() {
           endDate: data.endDate ? format(new Date(data.endDate), "yyyy-MM-dd") : "",
           instantlySync: data.instantlySync ?? false,
           emailSequence: data.emailSequence ?? [],
+          autoAssign: data.autoAssign
+            ? { ...data.autoAssign, sources: data.autoAssign.sources as ("META" | "API" | "MANUAL" | "BULK")[] }
+            : { enabled: false, sources: [] as ("META" | "API" | "MANUAL" | "BULK")[], executionMode: "parallel" as const },
         });
       })
       .catch(() => router.push("/campaigns"));
@@ -81,6 +85,7 @@ export default function EditCampaignPage() {
           endDate: campaign.endDate ?? "",
           instantlySync: campaign.instantlySync ?? false,
           emailSequence: campaign.emailSequence ?? [],
+          autoAssign: campaign.autoAssign ?? { enabled: false, sources: [], executionMode: "parallel" },
         }}
         onSubmit={handleSubmit}
         isLoading={isLoading}

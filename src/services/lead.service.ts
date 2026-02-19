@@ -123,6 +123,9 @@ export class LeadService {
         contactAttempts: {
           orderBy: { startedAt: "desc" },
         },
+        campaignLeads: {
+          include: { campaign: true },
+        },
       },
     }) as Promise<LeadWithAttempts | null>;
   }

@@ -19,6 +19,9 @@ import {
   AlertTriangle,
   CheckCircle2,
   XCircle,
+  DollarSign,
+  Target,
+  Percent,
 } from "lucide-react";
 import {
   LineChart,
@@ -52,12 +55,19 @@ type EmailActivity = {
   startedAt: string;
 };
 
+type ConversionStats = {
+  total: number;
+  totalRevenue: number;
+  conversionRate: number;
+};
+
 export default function DashboardPage() {
   const [stats, setStats] = useState<OverviewStats | null>(null);
   const [timeline, setTimeline] = useState<TimelineData[]>([]);
   const [emailStats, setEmailStats] = useState<EmailStats | null>(null);
   const [instantlyConnected, setInstantlyConnected] = useState<boolean | null>(null);
   const [recentEmails, setRecentEmails] = useState<EmailActivity[]>([]);
+  const [conversionStats, setConversionStats] = useState<ConversionStats | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -97,6 +107,16 @@ export default function DashboardPage() {
           if (activityRes.ok) {
             const data = await activityRes.json();
             setRecentEmails(Array.isArray(data) ? data : data.data ?? []);
+          }
+        } catch {
+          // silently ignore
+        }
+
+        // Fetch conversion stats
+        try {
+          const convRes = await fetch("/api/conversions/stats");
+          if (convRes.ok) {
+            setConversionStats(await convRes.json());
           }
         } catch {
           // silently ignore
@@ -156,6 +176,24 @@ export default function DashboardPage() {
     },
   ];
 
+  const conversionCards = [
+    {
+      title: "Total Conversions",
+      value: conversionStats?.total ?? 0,
+      icon: Target,
+    },
+    {
+      title: "Revenue",
+      value: `$${(conversionStats?.totalRevenue ?? 0).toLocaleString()}`,
+      icon: DollarSign,
+    },
+    {
+      title: "Conversion Rate",
+      value: `${conversionStats?.conversionRate ?? 0}%`,
+      icon: Percent,
+    },
+  ];
+
   return (
     <div className="space-y-6">
       {/* Stats cards */}
@@ -197,6 +235,28 @@ export default function DashboardPage() {
         </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {emailStatCards.map((stat) => (
+            <Card key={stat.title}>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  {stat.title}
+                </CardTitle>
+                <stat.icon className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {loading ? "..." : stat.value}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+
+      {/* Conversion Stats Section */}
+      <div>
+        <h2 className="text-lg font-semibold mb-4">Conversion Stats</h2>
+        <div className="grid gap-4 sm:grid-cols-3">
+          {conversionCards.map((stat) => (
             <Card key={stat.title}>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">

@@ -59,7 +59,12 @@ export default function EditScriptPage({
         setScript(data);
         setName(data.name);
         if (data.type === "CALL") {
-          setVapiConfig(data.vapiConfig || {});
+          const vc = data.vapiConfig
+            ? typeof data.vapiConfig === "string"
+              ? JSON.parse(data.vapiConfig)
+              : data.vapiConfig
+            : {};
+          setVapiConfig(vc);
           setEditing(true);
         } else if (data.type === "EMAIL") {
           setEmailSteps(parseEmailContent(data.content));

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -31,6 +31,7 @@ const SOURCES = [
 export function LeadFilters() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const updateFilter = useCallback(
     (key: string, value: string | null) => {
@@ -65,20 +66,20 @@ export function LeadFilters() {
         defaultValue={searchParams.get("search") || ""}
         onChange={(e) => {
           const value = e.target.value;
-          // Debounce search
-          const timeout = setTimeout(() => updateFilter("search", value || null), 300);
-          return () => clearTimeout(timeout);
+          if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+          searchTimeoutRef.current = setTimeout(() => updateFilter("search", value || null), 300);
         }}
       />
 
       <Select
-        value={searchParams.get("status") || ""}
-        onValueChange={(value) => updateFilter("status", value || null)}
+        value={searchParams.get("status") || "all"}
+        onValueChange={(value) => updateFilter("status", value === "all" ? null : value)}
       >
         <SelectTrigger className="w-40">
           <SelectValue placeholder="Status" />
         </SelectTrigger>
         <SelectContent>
+          <SelectItem value="all">All Statuses</SelectItem>
           {STATUSES.map((s) => (
             <SelectItem key={s.value} value={s.value}>
               {s.label}
@@ -88,13 +89,14 @@ export function LeadFilters() {
       </Select>
 
       <Select
-        value={searchParams.get("source") || ""}
-        onValueChange={(value) => updateFilter("source", value || null)}
+        value={searchParams.get("source") || "all"}
+        onValueChange={(value) => updateFilter("source", value === "all" ? null : value)}
       >
         <SelectTrigger className="w-32">
           <SelectValue placeholder="Source" />
         </SelectTrigger>
         <SelectContent>
+          <SelectItem value="all">All Sources</SelectItem>
           {SOURCES.map((s) => (
             <SelectItem key={s.value} value={s.value}>
               {s.label}

@@ -142,7 +142,7 @@ export function InstantlyIntegrationCard() {
       const res = await fetch("/api/integrations/instantly/webhook-setup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ auto: true }),
+        body: JSON.stringify({ auto: true, webhook_url: `${baseUrl}/api/webhooks/instantly` }),
       });
       if (res.ok) {
         setWebhookSetup(true);
@@ -204,8 +204,8 @@ export function InstantlyIntegrationCard() {
             id="instantly-campaignId"
             type="text"
             placeholder="Campaign ID for lead assignment"
-            value={config.campaignId ?? ""}
-            onChange={(e) => updateField("campaignId", e.target.value)}
+            value={config.defaultCampaignId ?? ""}
+            onChange={(e) => updateField("defaultCampaignId", e.target.value)}
           />
         </div>
 

@@ -1,36 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { SmsService } from "@/services/channel/sms.service";
 
 export async function POST(req: NextRequest) {
   try {
     const data = await req.json();
 
     // Handle ping/verification requests
-    if (!data || (!data.id && !data.status)) {
+    if (!data || (!data.id && !data.messageId && !data.status)) {
       return NextResponse.json({ success: true });
     }
 
-    const { id, status } = data as { id: number; status: string };
-
-    // Look up the contact attempt by provider ref
-    const attempt = await prisma.contactAttempt.findFirst({
-      where: {
-        providerRef: String(id),
-        provider: "sms-retail",
-      },
-    });
-
-    if (attempt) {
-      const newStatus = status === "delivered" ? "SUCCESS" : "FAILED";
-      await prisma.contactAttempt.update({
-        where: { id: attempt.id },
-        data: {
-          status: newStatus,
-          completedAt: new Date(),
-          result: JSON.stringify(data),
-        },
-      });
-    }
+    // Delegate to SmsService.handleCallback which handles all providers
+    // and maps statuses correctly (delivered, DELIVRD, sent, failed, UNDELIV, etc.)
+    await SmsService.handleCallback(data);
 
     return NextResponse.json({ success: true });
   } catch {
