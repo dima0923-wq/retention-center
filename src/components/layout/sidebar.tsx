@@ -13,6 +13,7 @@ import {
   PanelLeft,
   GraduationCap,
   Target,
+  FlaskConical,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,7 @@ const navItems = [
   { label: "Campaigns", href: "/campaigns", icon: Megaphone },
   { label: "Scripts", href: "/scripts", icon: FileText },
   { label: "Integrations", href: "/integrations", icon: Plug },
+  { label: "Test Send", href: "/test-send", icon: FlaskConical },
   { label: "Conversions", href: "/conversions", icon: Target },
   { label: "Learning", href: "/learning", icon: GraduationCap },
   { label: "Reports", href: "/reports", icon: BarChart3 },

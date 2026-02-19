@@ -75,12 +75,16 @@ export function InstantlyIntegrationCard() {
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (data && data.config) {
-          const parsed =
-            typeof data.config === "string"
-              ? JSON.parse(data.config)
-              : data.config;
-          setConfig(parsed as Record<string, string>);
-          setIsActive(data.isActive);
+          try {
+            const parsed =
+              typeof data.config === "string"
+                ? JSON.parse(data.config)
+                : data.config;
+            setConfig(parsed as Record<string, string>);
+            setIsActive(data.isActive);
+          } catch {
+            // malformed config — ignore
+          }
         }
       })
       .finally(() => setLoading(false));

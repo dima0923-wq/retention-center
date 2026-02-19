@@ -36,7 +36,7 @@ export default function LeadDetailPage({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [lead, setLead] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [editStatus, setEditStatus] = useState("");
+  const [editStatus, setEditStatus] = useState("NEW");
   const [editNotes, setEditNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [smsOpen, setSmsOpen] = useState(false);

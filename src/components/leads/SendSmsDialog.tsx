@@ -159,7 +159,7 @@ export function SendSmsDialog({ lead, open, onOpenChange, onSuccess }: SendSmsDi
           {scripts.length > 0 && (
             <div className="space-y-1">
               <Label>Template (optional)</Label>
-              <Select value={selectedScriptId} onValueChange={handleScriptSelect}>
+              <Select value={selectedScriptId || "none"} onValueChange={handleScriptSelect}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select an SMS template..." />
                 </SelectTrigger>

@@ -54,13 +54,17 @@ export function IntegrationCard({
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (data && data.config) {
-          const parsed =
-            typeof data.config === "string"
-              ? JSON.parse(data.config)
-              : data.config;
-          setConfig(parsed as Record<string, string>);
-          setIsActive(data.isActive);
-          setConnectionOk(data.isActive ? true : null);
+          try {
+            const parsed =
+              typeof data.config === "string"
+                ? JSON.parse(data.config)
+                : data.config;
+            setConfig(parsed as Record<string, string>);
+            setIsActive(data.isActive);
+            setConnectionOk(data.isActive ? true : null);
+          } catch {
+            // malformed config — ignore
+          }
         }
       })
       .finally(() => setLoading(false));

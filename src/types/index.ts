@@ -74,6 +74,16 @@ export type AutoAssignConfig = {
   executionMode?: "parallel" | "sequential";
 };
 
+export type CampaignVapiConfig = {
+  assistantId?: string;
+  phoneNumberId?: string;
+  voice?: string;
+  model?: string;
+  firstMessage?: string;
+  instructions?: string;
+  temperature?: number;
+};
+
 export type CampaignCreateInput = {
   name: string;
   description?: string;
@@ -88,6 +98,7 @@ export type CampaignCreateInput = {
   maxContactsPerDay?: number;
   delayBetweenChannels?: number;
   autoAssign?: AutoAssignConfig;
+  vapiConfig?: CampaignVapiConfig;
 };
 
 export type CampaignUpdateInput = {
@@ -105,6 +116,7 @@ export type CampaignUpdateInput = {
   maxContactsPerDay?: number;
   delayBetweenChannels?: number;
   autoAssign?: AutoAssignConfig;
+  vapiConfig?: CampaignVapiConfig;
 };
 
 export type CampaignListResponse = {

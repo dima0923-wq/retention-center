@@ -5,6 +5,7 @@ type VapiConfig = {
   apiKey: string;
   baseUrl?: string;
   assistantId?: string;
+  phoneNumberId?: string;
 };
 
 type VapiCallResponse = {
@@ -39,29 +40,81 @@ async function getConfig(): Promise<VapiConfig | null> {
   }
 }
 
+type CampaignVapiConfig = {
+  assistantId?: string;
+  phoneNumberId?: string;
+  voice?: string;
+  model?: string;
+  firstMessage?: string;
+  instructions?: string;
+  temperature?: number;
+};
+
+function parseCampaignVapiConfig(campaignMeta: unknown): CampaignVapiConfig {
+  try {
+    const meta = typeof campaignMeta === "string" ? JSON.parse(campaignMeta) : (campaignMeta ?? {});
+    return (meta as Record<string, unknown>).vapiConfig as CampaignVapiConfig ?? {};
+  } catch {
+    return {};
+  }
+}
+
 export class VapiService {
   static async createCall(
     lead: Lead,
-    script: Script
+    script: Script,
+    campaignMeta?: unknown
   ): Promise<{ providerRef: string } | { error: string }> {
     const config = await getConfig();
     if (!config) return { error: "VAPI integration not configured or inactive" };
 
     const baseUrl = config.baseUrl || "https://api.vapi.ai";
 
+    // Priority: script vapiConfig > campaign meta.vapiConfig > integration config
+    const scriptOverrides: Record<string, unknown> = script.vapiConfig
+      ? (typeof script.vapiConfig === "string"
+          ? JSON.parse(script.vapiConfig)
+          : (script.vapiConfig as Record<string, unknown>))
+      : {};
+
+    const campaignVapi = parseCampaignVapiConfig(campaignMeta);
+
+    const phoneNumberId = scriptOverrides.phoneNumberId ?? campaignVapi.phoneNumberId ?? config.phoneNumberId;
+    const assistantId = scriptOverrides.assistantId ?? campaignVapi.assistantId ?? config.assistantId;
+
+    if (!phoneNumberId) {
+      return { error: "VAPI call requires a phoneNumberId — set it in integration config, campaign, or script" };
+    }
+
+    // Merge campaign-level overrides as assistantOverrides when no script-level assistant is set
+    const assistantOverrides: Record<string, unknown> = {};
+    if (!scriptOverrides.assistantId && !scriptOverrides.assistant) {
+      if (campaignVapi.voice) assistantOverrides.voice = campaignVapi.voice;
+      if (campaignVapi.model) assistantOverrides.model = campaignVapi.model;
+      if (campaignVapi.firstMessage) assistantOverrides.firstMessage = campaignVapi.firstMessage;
+      if (campaignVapi.instructions) {
+        assistantOverrides.instructions = campaignVapi.instructions;
+      }
+      if (campaignVapi.temperature !== undefined) {
+        assistantOverrides.temperature = campaignVapi.temperature;
+      }
+    }
+
     const body: Record<string, unknown> = {
-      assistantId: config.assistantId,
+      ...scriptOverrides,
+      assistantId,
+      phoneNumberId,
       customer: {
         number: lead.phone,
         name: `${lead.firstName} ${lead.lastName}`,
       },
     };
 
-    if (script.vapiConfig) {
-      const parsedVapiConfig = typeof script.vapiConfig === "string"
-        ? JSON.parse(script.vapiConfig)
-        : script.vapiConfig;
-      Object.assign(body, parsedVapiConfig);
+    if (Object.keys(assistantOverrides).length > 0) {
+      body.assistantOverrides = {
+        ...(body.assistantOverrides as Record<string, unknown> ?? {}),
+        ...assistantOverrides,
+      };
     }
 
     const res = await fetch(`${baseUrl}/call/phone`, {

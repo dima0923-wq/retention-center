@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -9,9 +9,38 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ChannelSelector } from "./ChannelSelector";
 import { campaignCreateSchema } from "@/lib/validators";
-import { Plus, Trash2, Mail, Clock, Zap } from "lucide-react";
+import { Plus, Trash2, Mail, Clock, Zap, Phone } from "lucide-react";
+
+type VapiAssistant = { id: string; name: string };
+type VapiPhoneNumber = { id: string; number: string; name?: string };
+type VapiVoice = { id: string; name: string; provider: string };
+
+const VAPI_MODELS = [
+  { value: "gpt-4o", label: "GPT-4o" },
+  { value: "gpt-4o-mini", label: "GPT-4o Mini" },
+  { value: "claude-sonnet-4-6", label: "Claude Sonnet" },
+];
+
+type VapiConfig = {
+  assistantId?: string;
+  phoneNumberId?: string;
+  voice?: string;
+  model?: string;
+  firstMessage?: string;
+  instructions?: string;
+  temperature?: number;
+};
 
 type FormData = z.infer<typeof campaignCreateSchema>;
 
@@ -77,6 +106,47 @@ export function CampaignForm({
 
   const [activeStepField, setActiveStepField] = useState<{ stepIdx: number; field: "subject" | "body" } | null>(null);
 
+  // VAPI campaign-level config — read from defaultValues.vapiConfig
+  const [vapiConfig, setVapiConfig] = useState<VapiConfig>(() => {
+    const dv = defaultValues as Record<string, unknown> | undefined;
+    const raw = dv?.vapiConfig;
+    if (raw && typeof raw === "object") return raw as VapiConfig;
+    return {};
+  });
+  const [vapiAssistants, setVapiAssistants] = useState<VapiAssistant[]>([]);
+  const [vapiPhoneNumbers, setVapiPhoneNumbers] = useState<VapiPhoneNumber[]>([]);
+  const [vapiVoices, setVapiVoices] = useState<VapiVoice[]>([]);
+
+  useEffect(() => {
+    if (!channels.includes("CALL")) return;
+    fetch("/api/integrations/vapi/assistants")
+      .then((r) => r.ok ? r.json() : [])
+      .then((d) => setVapiAssistants(Array.isArray(d) ? d : []))
+      .catch(() => {});
+    fetch("/api/integrations/vapi/phone-numbers")
+      .then((r) => r.ok ? r.json() : [])
+      .then((d) => setVapiPhoneNumbers(Array.isArray(d) ? d : []))
+      .catch(() => {});
+    fetch("/api/integrations/vapi/voices")
+      .then((r) => r.ok ? r.json() : [])
+      .then((d) => setVapiVoices(Array.isArray(d) ? d : []))
+      .catch(() => {});
+  }, [channels.includes("CALL")]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const updateVapiConfig = (patch: Partial<VapiConfig>) => {
+    setVapiConfig((prev) => {
+      const updated = { ...prev, ...patch };
+      setValue("vapiConfig" as Parameters<typeof setValue>[0], updated);
+      return updated;
+    });
+  };
+
+  // Group voices by provider
+  const voicesByProvider = vapiVoices.reduce<Record<string, VapiVoice[]>>((acc, v) => {
+    (acc[v.provider] = acc[v.provider] ?? []).push(v);
+    return acc;
+  }, {});
+
   const addStep = () => {
     const newSteps: EmailStep[] = [
       ...emailSequence,
@@ -103,8 +173,13 @@ export function CampaignForm({
     updateStep(stepIdx, field, current + variable);
   };
 
+  const handleFormSubmit = async (data: FormData) => {
+    // vapiConfig is already in data via setValue("vapiConfig", ...) — nothing extra needed
+    await onSubmit(data);
+  };
+
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 max-w-2xl">
+    <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6 max-w-2xl">
       <div className="space-y-2">
         <Label htmlFor="name">Campaign Name</Label>
         <Input id="name" placeholder="e.g. Q1 Outreach" {...register("name")} />
@@ -374,6 +449,145 @@ export function CampaignForm({
               </Button>
             </CardContent>
           )}
+        </Card>
+      )}
+
+      {channels.includes("CALL") && (
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-2">
+              <Phone className="h-4 w-4" />
+              <CardTitle className="text-base">Voice (VAPI) Settings</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-xs text-muted-foreground">
+              Override VAPI defaults for this campaign. Leave blank to use integration defaults.
+            </p>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Assistant</Label>
+                <Select
+                  value={vapiConfig.assistantId ?? "__default__"}
+                  onValueChange={(v) => updateVapiConfig({ assistantId: v === "__default__" ? undefined : v })}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Use integration default" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__default__">Use integration default</SelectItem>
+                    {vapiAssistants.map((a) => (
+                      <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Phone Number</Label>
+                <Select
+                  value={vapiConfig.phoneNumberId ?? "__default__"}
+                  onValueChange={(v) => updateVapiConfig({ phoneNumberId: v === "__default__" ? undefined : v })}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Use integration default" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__default__">Use integration default</SelectItem>
+                    {vapiPhoneNumbers.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>{p.name ?? p.number}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Voice</Label>
+                <Select
+                  value={vapiConfig.voice ?? "__default__"}
+                  onValueChange={(v) => updateVapiConfig({ voice: v === "__default__" ? undefined : v })}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Use assistant default" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__default__">Use assistant default</SelectItem>
+                    {Object.entries(voicesByProvider).map(([provider, voices]) => (
+                      <SelectGroup key={provider}>
+                        <SelectLabel className="capitalize">{provider}</SelectLabel>
+                        {voices.map((v) => (
+                          <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
+                        ))}
+                      </SelectGroup>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Model</Label>
+                <Select
+                  value={vapiConfig.model ?? "__default__"}
+                  onValueChange={(v) => updateVapiConfig({ model: v === "__default__" ? undefined : v })}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Use assistant default" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__default__">Use assistant default</SelectItem>
+                    {VAPI_MODELS.map((m) => (
+                      <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="vapiFirstMessage">First Message</Label>
+              <Textarea
+                id="vapiFirstMessage"
+                placeholder="Hi {{firstName}}, this is..."
+                rows={2}
+                value={vapiConfig.firstMessage ?? ""}
+                onChange={(e) => updateVapiConfig({ firstMessage: e.target.value || undefined })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="vapiInstructions">System Instructions</Label>
+              <Textarea
+                id="vapiInstructions"
+                placeholder="You are a friendly sales rep..."
+                rows={4}
+                value={vapiConfig.instructions ?? ""}
+                onChange={(e) => updateVapiConfig({ instructions: e.target.value || undefined })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="vapiTemperature">
+                Temperature: {vapiConfig.temperature ?? 0.7}
+              </Label>
+              <input
+                id="vapiTemperature"
+                type="range"
+                min={0}
+                max={1}
+                step={0.1}
+                value={vapiConfig.temperature ?? 0.7}
+                onChange={(e) => updateVapiConfig({ temperature: parseFloat(e.target.value) })}
+                className="w-full accent-primary"
+              />
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>Precise (0)</span>
+                <span>Creative (1)</span>
+              </div>
+            </div>
+          </CardContent>
         </Card>
       )}
 

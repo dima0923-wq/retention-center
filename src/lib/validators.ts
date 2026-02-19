@@ -52,6 +52,17 @@ export const autoAssignSchema = z.object({
   executionMode: z.enum(["parallel", "sequential"]).optional(),
 });
 
+// VAPI campaign-level config schema
+export const vapiConfigSchema = z.object({
+  assistantId: z.string().optional(),
+  phoneNumberId: z.string().optional(),
+  voice: z.string().optional(),
+  model: z.string().optional(),
+  firstMessage: z.string().optional(),
+  instructions: z.string().optional(),
+  temperature: z.number().min(0).max(1).optional(),
+});
+
 // Campaign validators
 export const campaignCreateSchema = z.object({
   name: z.string().min(1, "Campaign name is required").max(200),
@@ -69,6 +80,8 @@ export const campaignCreateSchema = z.object({
   delayBetweenChannels: z.number().min(0).optional(),
   // Auto-assignment
   autoAssign: autoAssignSchema.optional(),
+  // VAPI campaign-level overrides
+  vapiConfig: vapiConfigSchema.optional(),
 });
 
 export const campaignUpdateSchema = z.object({
@@ -88,6 +101,8 @@ export const campaignUpdateSchema = z.object({
   delayBetweenChannels: z.number().min(0).optional(),
   // Auto-assignment
   autoAssign: autoAssignSchema.optional(),
+  // VAPI campaign-level overrides
+  vapiConfig: vapiConfigSchema.optional(),
 });
 
 export const campaignFiltersSchema = z.object({

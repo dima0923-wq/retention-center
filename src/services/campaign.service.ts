@@ -35,6 +35,8 @@ export class CampaignService {
     if (data.maxContactsPerDay) meta.maxContactsPerDay = data.maxContactsPerDay;
     if (data.delayBetweenChannels) meta.delayBetweenChannels = data.delayBetweenChannels;
     if (data.autoAssign) meta.autoAssign = data.autoAssign;
+    // VAPI campaign-level overrides
+    if (data.vapiConfig && Object.keys(data.vapiConfig).length > 0) meta.vapiConfig = data.vapiConfig;
 
     const campaign = await prisma.campaign.create({
       data: {
@@ -123,6 +125,7 @@ export class CampaignService {
       maxContactsPerDay: meta.maxContactsPerDay ?? undefined,
       delayBetweenChannels: meta.delayBetweenChannels ?? undefined,
       autoAssign: meta.autoAssign ?? undefined,
+      vapiConfig: meta.vapiConfig ?? undefined,
     };
   }
 
@@ -144,19 +147,18 @@ export class CampaignService {
     let metaJson: string | undefined;
     const scheduleFields = ["contactHoursStart", "contactHoursEnd", "contactDays", "maxContactsPerDay", "delayBetweenChannels"] as const;
     const hasMetaUpdates = data.instantlySync !== undefined || data.emailSequence !== undefined ||
-      (data as Record<string, unknown>).autoAssign !== undefined ||
-      scheduleFields.some((f) => (data as Record<string, unknown>)[f] !== undefined);
+      data.autoAssign !== undefined ||
+      data.vapiConfig !== undefined ||
+      scheduleFields.some((f) => data[f] !== undefined);
     if (hasMetaUpdates) {
       const existingMeta = campaign.meta ? JSON.parse(campaign.meta as string) : {};
       if (data.instantlySync !== undefined) existingMeta.instantlySync = data.instantlySync;
       if (data.emailSequence !== undefined) existingMeta.emailSequence = data.emailSequence;
       for (const f of scheduleFields) {
-        const val = (data as Record<string, unknown>)[f];
-        if (val !== undefined) existingMeta[f] = val;
+        if (data[f] !== undefined) existingMeta[f] = data[f];
       }
-      if ((data as Record<string, unknown>).autoAssign !== undefined) {
-        existingMeta.autoAssign = (data as Record<string, unknown>).autoAssign;
-      }
+      if (data.autoAssign !== undefined) existingMeta.autoAssign = data.autoAssign;
+      if (data.vapiConfig !== undefined) existingMeta.vapiConfig = data.vapiConfig;
       metaJson = JSON.stringify(existingMeta);
     }
 

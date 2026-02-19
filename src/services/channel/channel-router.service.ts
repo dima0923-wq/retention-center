@@ -105,7 +105,7 @@ export class ChannelRouterService {
 
     switch (channel) {
       case "CALL":
-        result = await VapiService.createCall(lead, selectedScript);
+        result = await VapiService.createCall(lead, selectedScript, campaign.meta);
         break;
       case "SMS":
         result = await SmsService.sendSms(lead, selectedScript);
@@ -228,15 +228,17 @@ export class ChannelRouterService {
       if (!attempt.script || !attempt.lead) continue;
 
       // Check if campaign is still active
+      let campaignMeta: unknown = undefined;
       if (attempt.campaignId) {
         const campaign = await prisma.campaign.findUnique({
           where: { id: attempt.campaignId },
-          select: { status: true },
+          select: { status: true, meta: true },
         });
         if (campaign && campaign.status === "PAUSED") {
           // Skip paused campaign attempts
           continue;
         }
+        campaignMeta = campaign?.meta;
       }
 
       let result:
@@ -245,7 +247,7 @@ export class ChannelRouterService {
 
       switch (attempt.channel) {
         case "CALL":
-          result = await VapiService.createCall(attempt.lead, attempt.script);
+          result = await VapiService.createCall(attempt.lead, attempt.script, campaignMeta);
           break;
         case "SMS":
           result = await SmsService.sendSms(attempt.lead, attempt.script);

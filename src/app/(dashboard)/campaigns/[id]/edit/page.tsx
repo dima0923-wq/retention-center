@@ -10,6 +10,15 @@ export default function EditCampaignPage() {
   const params = useParams();
   const router = useRouter();
   const id = params.id as string;
+  type VapiConfig = {
+    assistantId?: string;
+    phoneNumberId?: string;
+    voice?: string;
+    model?: string;
+    firstMessage?: string;
+    instructions?: string;
+    temperature?: number;
+  };
   const [campaign, setCampaign] = useState<{
     name: string;
     description?: string;
@@ -19,6 +28,7 @@ export default function EditCampaignPage() {
     instantlySync?: boolean;
     emailSequence?: Array<{ subject: string; body: string; delayValue: number; delayUnit: "hours" | "days" }>;
     autoAssign?: { enabled: boolean; sources?: ("META" | "API" | "MANUAL" | "BULK")[]; maxLeads?: number; executionMode?: "parallel" | "sequential" };
+    vapiConfig?: VapiConfig;
   } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -40,6 +50,7 @@ export default function EditCampaignPage() {
           autoAssign: data.autoAssign
             ? { ...data.autoAssign, sources: data.autoAssign.sources as ("META" | "API" | "MANUAL" | "BULK")[] }
             : { enabled: false, sources: [] as ("META" | "API" | "MANUAL" | "BULK")[], executionMode: "parallel" as const },
+          vapiConfig: data.vapiConfig ?? undefined,
         });
       })
       .catch(() => router.push("/campaigns"));
@@ -86,6 +97,7 @@ export default function EditCampaignPage() {
           instantlySync: campaign.instantlySync ?? false,
           emailSequence: campaign.emailSequence ?? [],
           autoAssign: campaign.autoAssign ?? { enabled: false, sources: [], executionMode: "parallel" },
+          vapiConfig: campaign.vapiConfig,
         }}
         onSubmit={handleSubmit}
         isLoading={isLoading}

@@ -1,10 +1,10 @@
 "use client";
 
-import { Phone, Globe } from "lucide-react";
-import { IntegrationCard } from "@/components/integrations/IntegrationCard";
+import { Globe } from "lucide-react";
 import { SmsIntegrationCard } from "@/components/integrations/SmsIntegrationCard";
 import { InstantlyIntegrationCard } from "@/components/integrations/InstantlyIntegrationCard";
 import { KeitaroIntegrationCard } from "@/components/integrations/KeitaroIntegrationCard";
+import { VapiIntegrationCard } from "@/components/integrations/VapiIntegrationCard";
 import { WebhookUrlDisplay } from "@/components/integrations/WebhookUrlDisplay";
 import {
   Card,
@@ -33,32 +33,7 @@ export default function IntegrationsPage() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <IntegrationCard
-          provider="vapi"
-          type="CALL"
-          title="VAPI AI"
-          description="AI-powered voice calls for lead outreach"
-          icon={<Phone className="h-5 w-5" />}
-          fields={[
-            {
-              key: "apiKey",
-              label: "API Key",
-              type: "password",
-              placeholder: "sk-...",
-            },
-            {
-              key: "baseUrl",
-              label: "Base URL (optional)",
-              placeholder: "https://api.vapi.ai",
-            },
-            {
-              key: "assistantId",
-              label: "Assistant ID",
-              placeholder: "Your VAPI assistant ID",
-            },
-          ]}
-          webhookUrl={`${baseUrl}/api/webhooks/vapi`}
-        />
+        <VapiIntegrationCard />
 
         <SmsIntegrationCard />
 

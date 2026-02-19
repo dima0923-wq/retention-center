@@ -196,7 +196,7 @@ export function SmsIntegrationCard() {
             <div className="space-y-1.5">
               <Label className="text-xs">Channel Type</Label>
               <Select
-                value={config.channelType ?? ""}
+                value={config.channelType || undefined}
                 onValueChange={(v) => updateField("channelType", v)}
               >
                 <SelectTrigger>

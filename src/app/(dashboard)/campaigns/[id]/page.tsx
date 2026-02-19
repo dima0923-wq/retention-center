@@ -11,8 +11,18 @@ import { CampaignLeadTable } from "@/components/campaigns/CampaignLeadTable";
 import { InstantlyStats, InstantlyStatsData } from "@/components/campaigns/InstantlyStats";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { Pencil, Play, Pause, CheckCircle, Users, TrendingUp, BarChart3, Zap } from "lucide-react";
+import { Pencil, Play, Pause, CheckCircle, Users, TrendingUp, BarChart3, Zap, Phone } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+
+type VapiConfig = {
+  assistantId?: string;
+  phoneNumberId?: string;
+  voice?: string;
+  model?: string;
+  firstMessage?: string;
+  instructions?: string;
+  temperature?: number;
+};
 
 type CampaignDetail = {
   id: string;
@@ -39,6 +49,7 @@ type CampaignDetail = {
   }>;
   meta?: string | null;
   autoAssign?: { enabled: boolean; sources?: string[]; maxLeads?: number; executionMode?: string };
+  vapiConfig?: VapiConfig;
   scripts: Array<{ id: string; name: string; type: string }>;
   _count: { campaignLeads: number };
 };
@@ -60,6 +71,7 @@ export default function CampaignDetailPage() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [instantlyLoading, setInstantlyLoading] = useState(false);
+  const [vapiAssistantName, setVapiAssistantName] = useState<string | null>(null);
 
   const fetchInstantlyStats = useCallback(async () => {
     try {
@@ -103,6 +115,17 @@ export default function CampaignDetailPage() {
   useEffect(() => {
     fetchCampaign();
   }, [fetchCampaign]);
+
+  useEffect(() => {
+    if (!campaign?.channels?.includes("CALL") || !campaign.vapiConfig?.assistantId) return;
+    fetch("/api/integrations/vapi/assistants")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((list: { id: string; name: string }[]) => {
+        const found = list.find((a) => a.id === campaign.vapiConfig!.assistantId);
+        if (found) setVapiAssistantName(found.name);
+      })
+      .catch(() => {});
+  }, [campaign]);
 
   const handleAction = async (action: "start" | "pause" | "complete") => {
     setActionLoading(true);
@@ -229,6 +252,8 @@ export default function CampaignDetailPage() {
 
   const hasEmailChannel = campaign.channels?.includes("EMAIL");
   const autoAssign = campaign.autoAssign;
+  const vapiConfig = campaign.vapiConfig;
+  const hasCallChannel = campaign.channels?.includes("CALL");
 
   return (
     <div className="space-y-6">
@@ -349,6 +374,65 @@ export default function CampaignDetailPage() {
               isLoading={instantlyLoading}
               instantlyStatus={instantlyStatus}
             />
+          </CardContent>
+        </Card>
+      )}
+
+      {hasCallChannel && vapiConfig && (
+        <Card>
+          <CardHeader className="flex flex-row items-center gap-2 space-y-0 pb-2">
+            <Phone className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-base font-medium">Voice Settings</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+              {vapiConfig.assistantId && (
+                <>
+                  <dt className="text-muted-foreground">Assistant</dt>
+                  <dd className="font-medium">{vapiAssistantName ?? vapiConfig.assistantId}</dd>
+                </>
+              )}
+              {vapiConfig.phoneNumberId && (
+                <>
+                  <dt className="text-muted-foreground">Phone Number</dt>
+                  <dd className="font-medium font-mono">{vapiConfig.phoneNumberId}</dd>
+                </>
+              )}
+              {vapiConfig.voice && (
+                <>
+                  <dt className="text-muted-foreground">Voice</dt>
+                  <dd className="font-medium">{vapiConfig.voice}</dd>
+                </>
+              )}
+              {vapiConfig.model && (
+                <>
+                  <dt className="text-muted-foreground">Model</dt>
+                  <dd className="font-medium">{vapiConfig.model}</dd>
+                </>
+              )}
+              {vapiConfig.temperature !== undefined && (
+                <>
+                  <dt className="text-muted-foreground">Temperature</dt>
+                  <dd className="font-medium">{vapiConfig.temperature}</dd>
+                </>
+              )}
+              {vapiConfig.firstMessage && (
+                <>
+                  <dt className="text-muted-foreground">First Message</dt>
+                  <dd className="font-medium truncate max-w-xs" title={vapiConfig.firstMessage}>
+                    {vapiConfig.firstMessage.length > 80
+                      ? vapiConfig.firstMessage.slice(0, 80) + "…"
+                      : vapiConfig.firstMessage}
+                  </dd>
+                </>
+              )}
+            </dl>
+            {vapiConfig.instructions && (
+              <div className="mt-3 pt-3 border-t">
+                <p className="text-xs text-muted-foreground mb-1">System Instructions</p>
+                <p className="text-sm bg-muted rounded p-2 whitespace-pre-wrap">{vapiConfig.instructions}</p>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
