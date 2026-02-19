@@ -98,41 +98,33 @@ export class SchedulerService {
     for (const attempt of dueAttempts) {
       if (!attempt.lead) continue;
 
-      // Check if campaign is still active
-      if (attempt.campaignId) {
-        const campaign = await prisma.campaign.findUnique({
-          where: { id: attempt.campaignId },
-          select: { status: true },
-        });
-        if (campaign && campaign.status === "PAUSED") {
-          continue;
-        }
-      }
-
-      // Route through channel-router (which will create a new attempt)
+      // Fetch campaign once with all needed fields
       if (attempt.campaignId) {
         const campaign = await prisma.campaign.findUnique({
           where: { id: attempt.campaignId },
         });
-        if (campaign) {
-          const result = await ChannelRouterService.routeContact(
-            attempt.lead,
-            campaign,
-            attempt.channel
-          );
 
-          // Mark the scheduled attempt as completed regardless
-          await prisma.contactAttempt.update({
-            where: { id: attempt.id },
-            data: {
-              status: "error" in result ? "FAILED" : "COMPLETED",
-              completedAt: new Date(),
-              notes: "error" in result ? result.error : "Processed from schedule",
-            },
-          });
+        if (!campaign) continue;
+        if (campaign.status === "PAUSED") continue;
 
-          processed++;
-        }
+        // Route through channel-router (which will create a new attempt)
+        const result = await ChannelRouterService.routeContact(
+          attempt.lead,
+          campaign,
+          attempt.channel
+        );
+
+        // Mark the scheduled attempt as completed regardless
+        await prisma.contactAttempt.update({
+          where: { id: attempt.id },
+          data: {
+            status: "error" in result ? "FAILED" : "COMPLETED",
+            completedAt: new Date(),
+            notes: "error" in result ? result.error : "Processed from schedule",
+          },
+        });
+
+        processed++;
       }
     }
 

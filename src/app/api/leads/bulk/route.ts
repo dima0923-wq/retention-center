@@ -47,9 +47,10 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const status = results.created > 0 ? 201 : 200;
     return NextResponse.json(
       { ...results, assigned: campaignId ? createdLeadIds.length : 0 },
-      { status: 201 }
+      { status }
     );
   } catch (error) {
     console.error("POST /api/leads/bulk error:", error);

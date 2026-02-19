@@ -370,7 +370,10 @@ export class CampaignService {
     return { stats };
   }
 
-  static async getStats(id: string): Promise<CampaignStats & { attempts?: Record<string, unknown> }> {
+  static async getStats(id: string): Promise<(CampaignStats & { attempts?: Record<string, unknown> }) | null> {
+    const campaign = await prisma.campaign.findUnique({ where: { id } });
+    if (!campaign) return null;
+
     const [totalLeads, byStatusRaw, attemptsByStatus, attemptsByChannel] = await Promise.all([
       prisma.campaignLead.count({ where: { campaignId: id } }),
       prisma.campaignLead.groupBy({

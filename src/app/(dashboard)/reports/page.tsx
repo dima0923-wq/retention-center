@@ -14,7 +14,7 @@ import { CampaignComparisonTable } from "@/components/reports/CampaignComparison
 import { ExportButton } from "@/components/reports/ExportButton";
 import { EmailAnalytics } from "@/components/reports/EmailAnalytics";
 
-type DateRangePreset = "7d" | "30d" | "90d" | "custom";
+type DateRangePreset = "7d" | "30d" | "90d";
 
 type OverviewStats = {
   totalLeads: number;

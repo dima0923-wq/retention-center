@@ -85,6 +85,7 @@ export async function getOverviewStats(range: DateRange) {
     byStatus[row.status] = row._count;
   }
 
+  // Note: conversionRate is lead-status-based (CONVERTED leads / total leads), not attempt-to-conversion
   const conversionRate =
     totalLeads > 0 ? ((byStatus["CONVERTED"] ?? 0) / totalLeads) * 100 : 0;
 
@@ -179,9 +180,11 @@ export async function getCampaignComparison(range: DateRange) {
   const cached = getCached(cacheKey);
   if (cached) return cached;
 
+  const createdAtFilter = dateFilter(range);
   const campaigns = await prisma.campaign.findMany({
     where: {
       status: { in: ["ACTIVE", "COMPLETED"] },
+      ...(createdAtFilter ? { createdAt: createdAtFilter } : {}),
     },
     include: {
       _count: { select: { campaignLeads: true } },
@@ -246,7 +249,7 @@ export async function getTimeline(range: DateRange) {
   >();
 
   const days = Math.ceil((to.getTime() - from.getTime()) / (24 * 60 * 60 * 1000));
-  for (let i = 0; i <= days; i++) {
+  for (let i = 0; i < days; i++) {
     const d = new Date(from.getTime() + i * 24 * 60 * 60 * 1000);
     const key = d.toISOString().slice(0, 10);
     dateMap.set(key, { date: key, leads: 0, attempts: 0, conversions: 0 });
@@ -335,7 +338,7 @@ export async function getEmailAnalytics(range: DateRange) {
   // Timeline: group by date
   const dateMap = new Map<string, { date: string; sent: number; opened: number; clicked: number; replied: number }>();
   const days = Math.ceil((to.getTime() - from.getTime()) / (24 * 60 * 60 * 1000));
-  for (let i = 0; i <= days; i++) {
+  for (let i = 0; i < days; i++) {
     const d = new Date(from.getTime() + i * 24 * 60 * 60 * 1000);
     const key = d.toISOString().slice(0, 10);
     dateMap.set(key, { date: key, sent: 0, opened: 0, clicked: 0, replied: 0 });
@@ -417,7 +420,7 @@ export async function getEmailAnalytics(range: DateRange) {
 
   const accountHealth = Array.from(providerMap.entries()).map(([provider, stats]) => ({
     provider,
-    status: stats.successful / stats.total >= 0.9 ? "Healthy" : stats.successful / stats.total >= 0.7 ? "Warning" : "Critical",
+    status: stats.total === 0 ? "No Data" : stats.successful / stats.total >= 0.9 ? "Healthy" : stats.successful / stats.total >= 0.7 ? "Warning" : "Critical",
     successRate: stats.total > 0 ? Math.round((stats.successful / stats.total) * 1000) / 10 : 0,
   }));
 

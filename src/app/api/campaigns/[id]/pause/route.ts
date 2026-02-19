@@ -13,8 +13,9 @@ export async function POST(_req: NextRequest, context: RouteContext) {
     return NextResponse.json(campaign);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Internal server error";
-    const status = message.includes("Invalid status transition") ? 400 : 500;
     console.error("POST /api/campaigns/[id]/pause error:", error);
-    return NextResponse.json({ error: message }, { status });
+    if (message.includes("Campaign not found")) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
+    if (message.includes("Invalid status transition")) return NextResponse.json({ error: message }, { status: 400 });
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

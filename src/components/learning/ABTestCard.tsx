@@ -45,9 +45,6 @@ export function ABTestCard({ test }: ABTestCardProps) {
   const statsA = parseStats(test.statsA);
   const statsB = parseStats(test.statsB);
   const isComplete = test.status === "COMPLETED";
-  const totalA = statsA.attempts;
-  const totalB = statsB.attempts;
-  const total = totalA + totalB;
 
   return (
     <Card>
@@ -88,7 +85,7 @@ export function ABTestCard({ test }: ABTestCardProps) {
             <div
               className="h-full bg-blue-500 rounded-full transition-all"
               style={{
-                width: `${total > 0 ? (totalA / total) * 100 : 50}%`,
+                width: `${statsA.conversionRate}%`,
               }}
             />
           </div>
@@ -117,7 +114,7 @@ export function ABTestCard({ test }: ABTestCardProps) {
             <div
               className="h-full bg-violet-500 rounded-full transition-all"
               style={{
-                width: `${total > 0 ? (totalB / total) * 100 : 50}%`,
+                width: `${statsB.conversionRate}%`,
               }}
             />
           </div>

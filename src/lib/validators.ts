@@ -4,7 +4,7 @@ export const leadCreateSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().min(1, "Last name is required"),
   phone: z.string().optional(),
-  email: z.string().optional().transform(v => (!v || v.trim() === "") ? undefined : v),
+  email: z.string().email().optional().transform(v => (!v || v.trim() === "") ? undefined : v),
   source: z.enum(["META", "MANUAL", "API"]).default("MANUAL"),
   externalId: z.string().optional(),
   meta: z.record(z.string(), z.unknown()).optional(),
@@ -15,7 +15,7 @@ export const leadUpdateSchema = z.object({
   firstName: z.string().min(1).optional(),
   lastName: z.string().min(1).optional(),
   phone: z.string().optional(),
-  email: z.string().optional().transform(v => (!v || v.trim() === "") ? undefined : v),
+  email: z.string().email().optional().transform(v => (!v || v.trim() === "") ? undefined : v),
   status: z.enum(["NEW", "CONTACTED", "IN_PROGRESS", "CONVERTED", "LOST", "DO_NOT_CONTACT"]).optional(),
   notes: z.string().optional(),
 });
@@ -41,7 +41,7 @@ export const emailSequenceStepSchema = z.object({
   subject: z.string().min(1, "Subject is required"),
   body: z.string().min(1, "Body is required"),
   delayValue: z.number().int().min(0),
-  delayUnit: z.enum(["hours", "days"]),
+  delayUnit: z.enum(["HOURS", "DAYS", "WEEKS"]),
 });
 
 // Auto-assignment schema
@@ -112,7 +112,7 @@ export const campaignFiltersSchema = z.object({
   dateTo: z.string().optional(),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
-  sortBy: z.string().default("createdAt"),
+  sortBy: z.enum(["createdAt", "updatedAt", "name", "status", "startDate", "endDate"]).default("createdAt"),
   sortOrder: z.enum(["asc", "desc"]).default("desc"),
 });
 
@@ -142,4 +142,97 @@ export const scriptFiltersSchema = z.object({
   type: z.enum(["CALL", "SMS", "EMAIL"]).optional(),
   campaignId: z.string().optional(),
   search: z.string().optional(),
+});
+
+// ─── Retention Sequence Validators ──────────────────────────────────────────
+
+export const sequenceStepSchema = z.object({
+  stepOrder: z.number().int().min(1),
+  channel: z.enum(["EMAIL", "SMS", "CALL"]),
+  scriptId: z.string().optional(),
+  delayValue: z.number().int().min(0).default(0),
+  delayUnit: z.enum(["HOURS", "DAYS", "WEEKS"]).default("HOURS"),
+  conditions: z.record(z.string(), z.unknown()).optional(),
+  isActive: z.boolean().default(true),
+});
+
+export const sequenceCreateSchema = z.object({
+  name: z.string().min(1, "Sequence name is required").max(200),
+  description: z.string().max(2000).optional(),
+  channels: z.array(z.enum(["EMAIL", "SMS", "CALL"])).min(1, "At least one channel is required"),
+  triggerType: z.enum(["new_lead", "no_conversion", "manual"]).default("manual"),
+  triggerConfig: z.record(z.string(), z.unknown()).optional(),
+  steps: z.array(sequenceStepSchema).optional(),
+});
+
+export const sequenceUpdateSchema = z.object({
+  name: z.string().min(1).max(200).optional(),
+  description: z.string().max(2000).optional(),
+  channels: z.array(z.enum(["EMAIL", "SMS", "CALL"])).min(1).optional(),
+  triggerType: z.enum(["new_lead", "no_conversion", "manual"]).optional(),
+  triggerConfig: z.record(z.string(), z.unknown()).optional(),
+  status: z.enum(["DRAFT", "ACTIVE", "PAUSED", "ARCHIVED"]).optional(),
+  steps: z.array(sequenceStepSchema).optional(),
+});
+
+export const sequenceFiltersSchema = z.object({
+  search: z.string().optional(),
+  status: z.enum(["DRAFT", "ACTIVE", "PAUSED", "ARCHIVED"]).optional(),
+  triggerType: z.enum(["new_lead", "no_conversion", "manual"]).optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  sortBy: z.string().default("createdAt"),
+  sortOrder: z.enum(["asc", "desc"]).default("desc"),
+});
+
+export const sequenceEnrollSchema = z.object({
+  leadIds: z.array(z.string().min(1)).min(1, "At least one lead is required"),
+});
+
+export const enrollmentFiltersSchema = z.object({
+  status: z.enum(["ACTIVE", "PAUSED", "COMPLETED", "CANCELLED", "CONVERTED"]).optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+});
+
+// ─── Contact Attempt Validators ──────────────────────────────────────────────
+
+export const contactAttemptCreateSchema = z.object({
+  channel: z.enum(["CALL", "SMS", "EMAIL"]),
+  status: z.enum(["PENDING", "IN_PROGRESS", "COMPLETED", "FAILED", "NO_ANSWER", "VOICEMAIL"]),
+  leadId: z.string().min(1),
+  campaignId: z.string().min(1),
+  scriptId: z.string().min(1),
+  result: z.string().optional(),
+  notes: z.string().optional(),
+});
+
+// ─── Conversion Validators ───────────────────────────────────────────────────
+
+export const conversionCreateSchema = z.object({
+  leadId: z.string().min(1),
+  campaignId: z.string().min(1),
+  contactAttemptId: z.string().optional(),
+  source: z.string().min(1),
+  revenue: z.number().optional(),
+  subId: z.string().optional(),
+  status: z.string().min(1),
+});
+
+// ─── AB Test Validators ──────────────────────────────────────────────────────
+
+export const abTestCreateSchema = z.object({
+  campaignId: z.string().min(1),
+  variantA: z.string().min(1),
+  variantB: z.string().min(1),
+  status: z.enum(["ACTIVE", "PAUSED", "COMPLETED"]).optional().default("ACTIVE"),
+});
+
+// ─── Conversion Rule Validators ───────────────────────────────────────────────
+
+export const conversionRuleCreateSchema = z.object({
+  channel: z.enum(["CALL", "SMS", "EMAIL"]),
+  condition: z.string().min(1),
+  value: z.string().min(1),
+  score: z.number(),
 });

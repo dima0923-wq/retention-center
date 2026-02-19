@@ -1,4 +1,4 @@
-import type { Lead, ContactAttempt, Campaign, CampaignLead, Script } from "@/generated/prisma/client";
+import type { Lead, ContactAttempt, Campaign, CampaignLead, Script, RetentionSequence, SequenceStep, SequenceEnrollment, SequenceStepExecution, Conversion, ConversionRule, ABTest } from "@/generated/prisma/client";
 
 export type PaginationParams = {
   page: number;
@@ -64,7 +64,7 @@ export type EmailSequenceStep = {
   subject: string;
   body: string;
   delayValue: number;
-  delayUnit: "hours" | "days";
+  delayUnit: "HOURS" | "DAYS" | "WEEKS";
 };
 
 export type AutoAssignConfig = {
@@ -200,4 +200,16 @@ export type EmailStats = {
   clickRate: number;
   replyRate: number;
   bounceRate: number;
+};
+
+// ─── Prisma model re-exports ──────────────────────────────────────────────────
+
+export type {
+  RetentionSequence,
+  SequenceStep,
+  SequenceEnrollment,
+  SequenceStepExecution,
+  Conversion,
+  ConversionRule,
+  ABTest,
 };

@@ -119,7 +119,7 @@ export class LearningService {
    * Tokenizes script content, correlates with conversion outcomes.
    * Requires minimum 10 sample size per word.
    */
-  static async getTopPerformingWords(channel: string, limit = 20) {
+  static async getTopPerformingWords(channel: string, limit = 20, sortDir: "desc" | "asc" = "desc") {
     const MIN_SAMPLE = 10;
 
     // Get all contact attempts for this channel that have scripts
@@ -179,7 +179,7 @@ export class LearningService {
       .filter(([, s]) => s.total >= MIN_SAMPLE)
       .map(([word, s]) => {
         const rate = s.converted / s.total;
-        const z = zTest(rate, s.total, baseRate, totalAttempts);
+        const z = zTest(rate, s.total, baseRate, totalAttempts - s.total);
         const confidence = zToConfidence(z);
         return {
           word,
@@ -190,7 +190,11 @@ export class LearningService {
           confidence: Math.round(confidence * 100) / 100,
         };
       })
-      .sort((a, b) => b.conversionRate - a.conversionRate)
+      .sort((a, b) =>
+        sortDir === "asc"
+          ? a.conversionRate - b.conversionRate
+          : b.conversionRate - a.conversionRate
+      )
       .slice(0, limit);
 
     return {
@@ -207,10 +211,7 @@ export class LearningService {
   static async suggestOptimalScript(channel: string, campaignId?: string) {
     const [topWords, bottomWords, timeAnalysis] = await Promise.all([
       LearningService.getTopPerformingWords(channel, 10),
-      LearningService.getTopPerformingWords(channel, 50).then((r) => ({
-        ...r,
-        words: r.words.reverse().slice(0, 10),
-      })),
+      LearningService.getTopPerformingWords(channel, 10, "asc"),
       LearningService.getTimeAnalysis(channel),
     ]);
 
@@ -350,9 +351,15 @@ export class LearningService {
     });
     const channels = channelGroups.map((g) => g.channel);
 
-    // Per-channel word insights
-    for (const channel of channels) {
-      const wordData = await LearningService.getTopPerformingWords(channel, 5);
+    // Per-channel word insights, time insights, and channel comparison — all in parallel
+    await Promise.all(channels.map(async (channel) => {
+      const [wordData, timeData, convStats] = await Promise.all([
+        LearningService.getTopPerformingWords(channel, 5),
+        LearningService.getTimeAnalysis(channel),
+        LearningService.analyzeConversions(channel),
+      ]);
+
+      // Word insights
       if (wordData.words.length > 0) {
         const best = wordData.words[0];
         if (best.lift > 50) {
@@ -362,34 +369,34 @@ export class LearningService {
           );
         }
       }
-    }
 
-    // Time-of-day insights
-    for (const channel of channels) {
-      const timeData = await LearningService.getTimeAnalysis(channel);
-      if (timeData.heatmap.length === 0) continue;
+      // Time-of-day insights
+      if (timeData.heatmap.length > 0) {
+        const sorted = [...timeData.heatmap]
+          .filter((s) => s.total >= 5)
+          .sort((a, b) => b.conversionRate - a.conversionRate);
 
-      const sorted = [...timeData.heatmap]
-        .filter((s) => s.total >= 5)
-        .sort((a, b) => b.conversionRate - a.conversionRate);
-
-      if (sorted.length >= 2) {
-        const best = sorted[0];
-        const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-        const timeStr = `${best.hour}:00-${best.hour + 1}:00`;
-        insights.push(
-          `${channel}: ${dayNames[best.dayOfWeek]} ${timeStr} has ${best.conversionRate}% conversion rate (highest)`
-        );
+        if (sorted.length >= 2) {
+          const best = sorted[0];
+          const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+          const timeStr = `${best.hour}:00-${best.hour + 1}:00`;
+          insights.push(
+            `${channel}: ${dayNames[best.dayOfWeek]} ${timeStr} has ${best.conversionRate}% conversion rate (highest)`
+          );
+        }
       }
-    }
 
-    // Channel comparison insight
+      return { channel, rate: convStats.conversionRate };
+    }));
+
+    // Channel comparison insight (uses already-available data, re-fetch is cheap since parallelized above)
     if (channels.length >= 2) {
-      const channelRates: { channel: string; rate: number }[] = [];
-      for (const channel of channels) {
-        const stats = await LearningService.analyzeConversions(channel);
-        channelRates.push({ channel, rate: stats.conversionRate });
-      }
+      const channelRates = await Promise.all(
+        channels.map(async (channel) => {
+          const stats = await LearningService.analyzeConversions(channel);
+          return { channel, rate: stats.conversionRate };
+        })
+      );
       channelRates.sort((a, b) => b.rate - a.rate);
       if (channelRates[0].rate > 0) {
         insights.push(
@@ -546,5 +553,307 @@ export class LearningService {
     ]);
 
     return { rulesUpdated: rules.length };
+  }
+
+  /**
+   * Sequence Performance Analytics.
+   * Returns per-sequence stats: conversion rate, step drop-off, delay timing analysis.
+   */
+  static async getSequencePerformance() {
+    const sequences = await prisma.retentionSequence.findMany({
+      where: { status: { in: ["ACTIVE", "PAUSED"] } },
+      include: {
+        steps: { orderBy: { stepOrder: "asc" } },
+        enrollments: {
+          select: { status: true },
+        },
+      },
+    });
+
+    const results = await Promise.all(sequences.map(async (seq) => {
+      const totalEnrolled = seq.enrollments.length;
+      const converted = seq.enrollments.filter(
+        (e) => e.status === "CONVERTED"
+      ).length;
+      const completed = seq.enrollments.filter(
+        (e) => e.status === "COMPLETED"
+      ).length;
+      const active = seq.enrollments.filter(
+        (e) => e.status === "ACTIVE"
+      ).length;
+      const conversionRate =
+        totalEnrolled > 0
+          ? Math.round((converted / totalEnrolled) * 1000) / 10
+          : 0;
+
+      // Step drop-off analysis using aggregation instead of loading all executions
+      const stepStatsAgg = await prisma.sequenceStepExecution.groupBy({
+        by: ["stepId", "status"],
+        where: { enrollment: { sequenceId: seq.id } },
+        _count: true,
+      });
+
+      // Build a lookup: stepId -> Map<status, count>
+      const stepCountMap = new Map<string, Map<string, number>>();
+      for (const row of stepStatsAgg) {
+        if (!stepCountMap.has(row.stepId)) stepCountMap.set(row.stepId, new Map());
+        stepCountMap.get(row.stepId)!.set(row.status, row._count);
+      }
+
+      const stepStats = seq.steps.map((step) => {
+        const counts = stepCountMap.get(step.id) ?? new Map<string, number>();
+        const sent = (counts.get("SENT") ?? 0) + (counts.get("DELIVERED") ?? 0);
+        const failed = counts.get("FAILED") ?? 0;
+        const skipped = counts.get("SKIPPED") ?? 0;
+        const pending = (counts.get("PENDING") ?? 0) + (counts.get("SCHEDULED") ?? 0);
+        const total = Array.from(counts.values()).reduce((a, b) => a + b, 0);
+
+        return {
+          stepOrder: step.stepOrder,
+          channel: step.channel,
+          delayValue: step.delayValue,
+          delayUnit: step.delayUnit,
+          total,
+          sent,
+          failed,
+          skipped,
+          pending,
+          dropOffRate:
+            total > 0
+              ? Math.round(((failed + skipped) / total) * 1000) / 10
+              : 0,
+        };
+      });
+
+      let channels: string[] = [];
+      try { channels = JSON.parse(seq.channels) as string[]; } catch {}
+
+      return {
+        id: seq.id,
+        name: seq.name,
+        status: seq.status,
+        channels,
+        totalEnrolled,
+        converted,
+        completed,
+        active,
+        conversionRate,
+        steps: stepStats,
+      };
+    }));
+
+    // Sort by conversion rate descending
+    results.sort((a, b) => b.conversionRate - a.conversionRate);
+
+    return { sequences: results };
+  }
+
+  /**
+   * Channel Mix Analysis.
+   * Compares multi-channel vs single-channel sequence performance.
+   */
+  static async getChannelMixAnalysis() {
+    const sequences = await prisma.retentionSequence.findMany({
+      where: { status: { in: ["ACTIVE", "PAUSED", "ARCHIVED"] } },
+      include: {
+        steps: true,
+        enrollments: true,
+      },
+    });
+
+    // Group by channel combination
+    const combos = new Map<
+      string,
+      { totalEnrolled: number; converted: number; sequences: number }
+    >();
+
+    for (const seq of sequences) {
+      const channels = [
+        ...new Set(seq.steps.map((s) => s.channel)),
+      ].sort();
+      const key = channels.join("+") || "none";
+
+      const entry = combos.get(key) ?? {
+        totalEnrolled: 0,
+        converted: 0,
+        sequences: 0,
+      };
+      entry.sequences++;
+      entry.totalEnrolled += seq.enrollments.length;
+      entry.converted += seq.enrollments.filter(
+        (e) => e.status === "CONVERTED"
+      ).length;
+      combos.set(key, entry);
+    }
+
+    const channelMix = Array.from(combos.entries())
+      .map(([channels, stats]) => ({
+        channels,
+        channelCount: channels.split("+").length,
+        sequences: stats.sequences,
+        totalEnrolled: stats.totalEnrolled,
+        converted: stats.converted,
+        conversionRate:
+          stats.totalEnrolled > 0
+            ? Math.round(
+                (stats.converted / stats.totalEnrolled) * 1000
+              ) / 10
+            : 0,
+      }))
+      .sort((a, b) => b.conversionRate - a.conversionRate);
+
+    // Delay timing analysis
+    const delayPerformance = new Map<
+      string,
+      { totalEnrolled: number; converted: number }
+    >();
+
+    for (const seq of sequences) {
+      for (const step of seq.steps) {
+        const delayKey = `${step.delayValue}${step.delayUnit.charAt(0).toLowerCase()}`;
+        const entry = delayPerformance.get(delayKey) ?? {
+          totalEnrolled: 0,
+          converted: 0,
+        };
+        entry.totalEnrolled += seq.enrollments.length;
+        entry.converted += seq.enrollments.filter(
+          (e) => e.status === "CONVERTED"
+        ).length;
+        delayPerformance.set(delayKey, entry);
+      }
+    }
+
+    const delayAnalysis = Array.from(delayPerformance.entries())
+      .map(([delay, stats]) => ({
+        delay,
+        totalEnrolled: stats.totalEnrolled,
+        converted: stats.converted,
+        conversionRate:
+          stats.totalEnrolled > 0
+            ? Math.round(
+                (stats.converted / stats.totalEnrolled) * 1000
+              ) / 10
+            : 0,
+      }))
+      .sort((a, b) => b.conversionRate - a.conversionRate);
+
+    return { channelMix, delayAnalysis };
+  }
+
+  /**
+   * Generate actionable recommendations based on sequence data.
+   */
+  static async getRecommendations() {
+    const recommendations: Array<{
+      type: "create" | "pause" | "optimize";
+      priority: "high" | "medium" | "low";
+      text: string;
+    }> = [];
+
+    const sequences = await prisma.retentionSequence.findMany({
+      where: { status: "ACTIVE" },
+      include: {
+        steps: { orderBy: { stepOrder: "asc" } },
+        enrollments: true,
+      },
+    });
+
+    // Batch-fetch all step executions to avoid N+1 queries
+    const allStepIds = sequences.flatMap((s) => s.steps.map((st) => st.id));
+    const allExecs = await prisma.sequenceStepExecution.findMany({
+      where: { stepId: { in: allStepIds } },
+      select: { stepId: true, status: true },
+    });
+    const execsByStep = new Map<string, typeof allExecs>();
+    for (const e of allExecs) {
+      const arr = execsByStep.get(e.stepId) ?? [];
+      arr.push(e);
+      execsByStep.set(e.stepId, arr);
+    }
+
+    for (const seq of sequences) {
+      const totalEnrolled = seq.enrollments.length;
+      if (totalEnrolled < 5) continue;
+
+      const converted = seq.enrollments.filter(
+        (e) => e.status === "CONVERTED"
+      ).length;
+      const convRate = converted / totalEnrolled;
+
+      // Low conversion rate warning
+      if (convRate < 0.02 && totalEnrolled >= 20) {
+        recommendations.push({
+          type: "optimize",
+          priority: "high",
+          text: `Sequence "${seq.name}" has ${(convRate * 100).toFixed(1)}% conversion rate with ${totalEnrolled} leads. Consider revising the messaging or channel mix.`,
+        });
+      }
+
+      // Check for steps with high failure rates using pre-fetched data
+      for (const step of seq.steps) {
+        const stepExecs = execsByStep.get(step.id) ?? [];
+        if (stepExecs.length >= 10) {
+          const failed = stepExecs.filter(
+            (e) => e.status === "FAILED"
+          ).length;
+          if (failed / stepExecs.length > 0.5) {
+            recommendations.push({
+              type: "pause",
+              priority: "high",
+              text: `Step ${step.stepOrder + 1} (${step.channel}) in "${seq.name}" has ${Math.round((failed / stepExecs.length) * 100)}% failure rate. Consider pausing or replacing it.`,
+            });
+          }
+        }
+      }
+    }
+
+    // Channel comparison recommendation
+    const channelMix = await LearningService.getChannelMixAnalysis();
+    const multiChannel = channelMix.channelMix.filter(
+      (c) => c.channelCount > 1
+    );
+    const singleChannel = channelMix.channelMix.filter(
+      (c) => c.channelCount === 1
+    );
+
+    if (multiChannel.length > 0 && singleChannel.length > 0) {
+      const bestMulti = multiChannel[0];
+      const bestSingle = singleChannel[0];
+      if (
+        bestMulti.conversionRate > bestSingle.conversionRate &&
+        bestMulti.totalEnrolled >= 10
+      ) {
+        recommendations.push({
+          type: "create",
+          priority: "medium",
+          text: `Multi-channel sequences (${bestMulti.channels}) convert at ${bestMulti.conversionRate}% vs ${bestSingle.conversionRate}% for ${bestSingle.channels}-only. Consider adding more multi-channel sequences.`,
+        });
+      }
+    }
+
+    // Delay optimization
+    if (channelMix.delayAnalysis.length >= 2) {
+      const best = channelMix.delayAnalysis[0];
+      const worst =
+        channelMix.delayAnalysis[channelMix.delayAnalysis.length - 1];
+      if (
+        best.conversionRate > worst.conversionRate * 1.5 &&
+        best.totalEnrolled >= 10
+      ) {
+        recommendations.push({
+          type: "optimize",
+          priority: "medium",
+          text: `${best.delay} delays convert at ${best.conversionRate}% vs ${worst.conversionRate}% for ${worst.delay}. Consider using ${best.delay} delays more often.`,
+        });
+      }
+    }
+
+    // Sort by priority
+    const priorityOrder = { high: 0, medium: 1, low: 2 };
+    recommendations.sort(
+      (a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]
+    );
+
+    return { recommendations };
   }
 }

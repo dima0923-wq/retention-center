@@ -4,6 +4,17 @@ import { z } from "zod";
 
 type Params = { params: Promise<{ provider: string }> };
 
+function redactSensitiveFields(config: Record<string, unknown>) {
+  const sensitiveKeys = ["apiKey", "api_key", "password", "secret", "token"];
+  const result = { ...config };
+  for (const key of sensitiveKeys) {
+    if (key in result && typeof result[key] === "string") {
+      result[key] = "***";
+    }
+  }
+  return result;
+}
+
 export async function GET(_req: NextRequest, { params }: Params) {
   const { provider } = await params;
   const config = await prisma.integrationConfig.findUnique({
@@ -12,7 +23,11 @@ export async function GET(_req: NextRequest, { params }: Params) {
   if (!config) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
-  return NextResponse.json(config);
+  const redacted = {
+    ...config,
+    config: config.config ? redactSensitiveFields(JSON.parse(config.config as string)) : null,
+  };
+  return NextResponse.json(redacted);
 }
 
 const patchSchema = z.object({

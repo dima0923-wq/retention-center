@@ -22,6 +22,10 @@ import {
   DollarSign,
   Target,
   Percent,
+  ListOrdered,
+  UserCheck,
+  Clock,
+  Activity,
 } from "lucide-react";
 import {
   LineChart,
@@ -61,6 +65,34 @@ type ConversionStats = {
   conversionRate: number;
 };
 
+type SequenceDashboardStats = {
+  activeSequences: number;
+  totalSequences: number;
+  totalEnrolled: number;
+  activeEnrollments: number;
+  completedEnrollments: number;
+  convertedEnrollments: number;
+  conversionRate: number;
+  upcomingSteps: {
+    id: string;
+    scheduledAt: string;
+    channel: string;
+    stepOrder: number;
+    leadName: string;
+    leadEmail: string | null;
+    sequenceName: string;
+  }[];
+  recentActivity: {
+    id: string;
+    status: string;
+    executedAt: string;
+    channel: string;
+    stepOrder: number;
+    leadName: string;
+    sequenceName: string;
+  }[];
+};
+
 export default function DashboardPage() {
   const [stats, setStats] = useState<OverviewStats | null>(null);
   const [timeline, setTimeline] = useState<TimelineData[]>([]);
@@ -68,6 +100,7 @@ export default function DashboardPage() {
   const [instantlyConnected, setInstantlyConnected] = useState<boolean | null>(null);
   const [recentEmails, setRecentEmails] = useState<EmailActivity[]>([]);
   const [conversionStats, setConversionStats] = useState<ConversionStats | null>(null);
+  const [seqStats, setSeqStats] = useState<SequenceDashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -117,6 +150,16 @@ export default function DashboardPage() {
           const convRes = await fetch("/api/conversions/stats");
           if (convRes.ok) {
             setConversionStats(await convRes.json());
+          }
+        } catch {
+          // silently ignore
+        }
+
+        // Fetch sequence dashboard stats
+        try {
+          const seqRes = await fetch("/api/sequences/dashboard-stats");
+          if (seqRes.ok) {
+            setSeqStats(await seqRes.json());
           }
         } catch {
           // silently ignore
@@ -194,6 +237,56 @@ export default function DashboardPage() {
     },
   ];
 
+  const sequenceCards = [
+    {
+      title: "Active Sequences",
+      value: seqStats?.activeSequences ?? 0,
+      icon: ListOrdered,
+    },
+    {
+      title: "Enrolled Leads",
+      value: seqStats?.activeEnrollments ?? 0,
+      icon: UserCheck,
+    },
+    {
+      title: "Seq. Conversion Rate",
+      value: `${seqStats?.conversionRate ?? 0}%`,
+      icon: TrendingUp,
+    },
+    {
+      title: "Total Completed",
+      value: seqStats?.completedEnrollments ?? 0,
+      icon: CheckCircle2,
+    },
+  ];
+
+  const channelBadgeColor = (channel: string) => {
+    switch (channel) {
+      case "EMAIL":
+        return "default";
+      case "SMS":
+        return "secondary";
+      case "CALL":
+        return "outline";
+      default:
+        return "secondary";
+    }
+  };
+
+  const statusBadgeVariant = (status: string) => {
+    switch (status) {
+      case "SENT":
+      case "DELIVERED":
+        return "default" as const;
+      case "FAILED":
+        return "destructive" as const;
+      case "SKIPPED":
+        return "secondary" as const;
+      default:
+        return "secondary" as const;
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Stats cards */}
@@ -213,6 +306,121 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         ))}
+      </div>
+
+      {/* Sequence Stats Section */}
+      <div>
+        <h2 className="text-lg font-semibold mb-4">Retention Sequences</h2>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {sequenceCards.map((stat) => (
+            <Card key={stat.title}>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  {stat.title}
+                </CardTitle>
+                <stat.icon className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {loading ? "..." : stat.value}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+
+      {/* Upcoming Sequence Steps + Recent Sequence Activity */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        {/* Upcoming Steps */}
+        <Card>
+          <CardHeader className="flex flex-row items-center gap-2">
+            <Clock className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">
+              Upcoming Sequence Steps
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {seqStats && seqStats.upcomingSteps.length > 0 ? (
+              <div className="space-y-3">
+                {seqStats.upcomingSteps.map((step) => (
+                  <div
+                    key={step.id}
+                    className="flex items-center justify-between text-sm"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Badge variant={channelBadgeColor(step.channel)}>
+                        {step.channel}
+                      </Badge>
+                      <span className="font-medium truncate">
+                        {step.leadName}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-muted-foreground text-xs truncate max-w-[120px]">
+                        {step.sequenceName}
+                      </span>
+                      <span className="text-muted-foreground text-xs">
+                        {step.scheduledAt
+                          ? format(parseISO(step.scheduledAt), "MMM d, HH:mm")
+                          : ""}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-muted-foreground text-sm text-center py-4">
+                {loading ? "Loading..." : "No upcoming steps"}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Recent Sequence Activity */}
+        <Card>
+          <CardHeader className="flex flex-row items-center gap-2">
+            <Activity className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">
+              Recent Sequence Activity
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {seqStats && seqStats.recentActivity.length > 0 ? (
+              <div className="space-y-3">
+                {seqStats.recentActivity.map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex items-center justify-between text-sm"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Badge variant={channelBadgeColor(item.channel)}>
+                        {item.channel}
+                      </Badge>
+                      <span className="font-medium truncate">
+                        {item.leadName}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Badge variant={statusBadgeVariant(item.status)}>
+                        {item.status}
+                      </Badge>
+                      <span className="text-muted-foreground text-xs">
+                        {item.executedAt
+                          ? format(parseISO(item.executedAt), "MMM d, HH:mm")
+                          : ""}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-muted-foreground text-sm text-center py-4">
+                {loading ? "Loading..." : "No sequence activity yet"}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       {/* Email Stats Section */}

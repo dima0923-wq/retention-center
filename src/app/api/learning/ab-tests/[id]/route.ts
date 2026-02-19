@@ -28,6 +28,10 @@ export async function PATCH(req: NextRequest, ctx: RouteContext) {
       return NextResponse.json({ error: "A/B test not found" }, { status: 404 });
     }
 
+    if (body.status && !["ACTIVE", "PAUSED", "COMPLETED"].includes(body.status)) {
+      return NextResponse.json({ error: "Invalid status" }, { status: 400 });
+    }
+
     const updateData: Record<string, unknown> = {};
 
     if (body.status) {

@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Phone, Loader2, PhoneCall } from "lucide-react";
+import { Phone, Loader2 } from "lucide-react";
 import { ConnectionStatus } from "./ConnectionStatus";
 import { TestConnectionButton } from "./TestConnectionButton";
 import { WebhookUrlDisplay } from "./WebhookUrlDisplay";
@@ -36,8 +36,6 @@ type PhoneNumber = {
   provider?: string;
 };
 
-type CallStatus = "idle" | "queued" | "ringing" | "in-progress" | "ended" | "error";
-
 export function VapiIntegrationCard() {
   const [config, setConfig] = useState<Record<string, string>>({});
   const [isActive, setIsActive] = useState(false);
@@ -50,13 +48,6 @@ export function VapiIntegrationCard() {
   const [phoneNumbers, setPhoneNumbers] = useState<PhoneNumber[]>([]);
   const [loadingAssistants, setLoadingAssistants] = useState(false);
   const [loadingPhoneNumbers, setLoadingPhoneNumbers] = useState(false);
-
-  // Test call state
-  const [testPhone, setTestPhone] = useState("");
-  const [testAssistantId, setTestAssistantId] = useState("");
-  const [testPhoneNumberId, setTestPhoneNumberId] = useState("");
-  const [callStatus, setCallStatus] = useState<CallStatus>("idle");
-  const [callingInProgress, setCallingInProgress] = useState(false);
 
   const baseUrl =
     typeof window !== "undefined"
@@ -126,7 +117,7 @@ export function VapiIntegrationCard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           provider: "vapi",
-          type: "VOICE",
+          type: "CALL",
           config,
           isActive: true,
         }),
@@ -155,63 +146,6 @@ export function VapiIntegrationCard() {
       setPhoneNumbers([]);
       toast.success("VAPI deactivated");
     }
-  };
-
-  const handleTestCall = async () => {
-    if (!testPhone) {
-      toast.error("Please enter a phone number to call");
-      return;
-    }
-    setCallingInProgress(true);
-    setCallStatus("queued");
-    try {
-      const res = await fetch("/api/integrations/vapi/test-call", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          phoneNumber: testPhone,
-          assistantId: testAssistantId || config.assistantId,
-          phoneNumberId: testPhoneNumberId || config.phoneNumberId,
-        }),
-      });
-      if (res.ok) {
-        setCallStatus("ringing");
-        toast.success("Test call initiated");
-        // Simulate status progression
-        setTimeout(() => setCallStatus("in-progress"), 3000);
-        setTimeout(() => {
-          setCallStatus("ended");
-          setCallingInProgress(false);
-        }, 8000);
-      } else {
-        const err = await res.json();
-        setCallStatus("error");
-        toast.error(err.error ?? "Failed to initiate call");
-        setCallingInProgress(false);
-      }
-    } catch {
-      setCallStatus("error");
-      toast.error("Network error");
-      setCallingInProgress(false);
-    }
-  };
-
-  const callStatusLabel: Record<CallStatus, string> = {
-    idle: "",
-    queued: "Queued...",
-    ringing: "Ringing...",
-    "in-progress": "In Progress",
-    ended: "Call Ended",
-    error: "Call Failed",
-  };
-
-  const callStatusVariant: Record<CallStatus, "secondary" | "outline" | "destructive"> = {
-    idle: "secondary",
-    queued: "secondary",
-    ringing: "secondary",
-    "in-progress": "secondary",
-    ended: "outline",
-    error: "destructive",
   };
 
   const status = loading
@@ -331,108 +265,8 @@ export function VapiIntegrationCard() {
           url={`${baseUrl}/api/webhooks/vapi`}
         />
 
-        {/* Test Call Section */}
-        {isActive && (
-          <div className="space-y-3 rounded-md border p-3">
-            <div className="flex items-center gap-2">
-              <PhoneCall className="h-3.5 w-3.5 text-muted-foreground" />
-              <span className="text-xs font-medium">Test Call</span>
-              {callStatus !== "idle" && (
-                <Badge variant={callStatusVariant[callStatus]} className="text-xs">
-                  {callStatusLabel[callStatus]}
-                </Badge>
-              )}
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="vapi-test-phone" className="text-xs">
-                Phone Number to Call
-              </Label>
-              <Input
-                id="vapi-test-phone"
-                type="tel"
-                placeholder="+1234567890"
-                value={testPhone}
-                onChange={(e) => setTestPhone(e.target.value)}
-              />
-            </div>
-
-            {/* Test Assistant Selector */}
-            <div className="space-y-1.5">
-              <Label className="text-xs">Assistant (override)</Label>
-              {assistants.length > 0 ? (
-                <Select value={testAssistantId || "__default__"} onValueChange={(v) => setTestAssistantId(v === "__default__" ? "" : v)}>
-                  <SelectTrigger className="h-9 text-sm">
-                    <SelectValue placeholder="Use default assistant" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__default__">Use default</SelectItem>
-                    {assistants.map((a) => (
-                      <SelectItem key={a.id} value={a.id}>
-                        {a.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <Input
-                  type="text"
-                  placeholder="Assistant ID (optional override)"
-                  value={testAssistantId}
-                  onChange={(e) => setTestAssistantId(e.target.value)}
-                />
-              )}
-            </div>
-
-            {/* Test Phone Number Selector */}
-            <div className="space-y-1.5">
-              <Label className="text-xs">Caller Number (override)</Label>
-              {phoneNumbers.length > 0 ? (
-                <Select value={testPhoneNumberId || "__default__"} onValueChange={(v) => setTestPhoneNumberId(v === "__default__" ? "" : v)}>
-                  <SelectTrigger className="h-9 text-sm">
-                    <SelectValue placeholder="Use default phone number" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__default__">Use default</SelectItem>
-                    {phoneNumbers.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.number}
-                        {p.provider && (
-                          <span className="ml-1 text-muted-foreground">({p.provider})</span>
-                        )}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <Input
-                  type="text"
-                  placeholder="Phone Number ID (optional override)"
-                  value={testPhoneNumberId}
-                  onChange={(e) => setTestPhoneNumberId(e.target.value)}
-                />
-              )}
-            </div>
-
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full"
-              onClick={handleTestCall}
-              disabled={callingInProgress || !testPhone}
-            >
-              {callingInProgress ? (
-                <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-              ) : (
-                <PhoneCall className="mr-2 h-3 w-3" />
-              )}
-              {callingInProgress ? callStatusLabel[callStatus] : "Call Now"}
-            </Button>
-          </div>
-        )}
-
         {/* Actions */}
-        <div className="flex items-center justify-between pt-2">
+        <div className="flex items-center justify-between">
           <TestConnectionButton provider="vapi" onResult={setConnectionOk} />
           <div className="flex gap-2">
             {isActive && (

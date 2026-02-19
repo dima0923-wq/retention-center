@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { z } from "zod";
+
+const campaignCreateSchema = z.object({
+  name: z.string().min(1, "Campaign name is required"),
+  config: z.record(z.string(), z.unknown()).optional(),
+});
 
 async function getInstantlyApiKey(): Promise<string | null> {
   const config = await prisma.integrationConfig.findUnique({
@@ -44,7 +50,16 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const body = await req.json();
+  const rawBody = await req.json();
+  const bodyParsed = campaignCreateSchema.safeParse(rawBody);
+  if (!bodyParsed.success) {
+    return NextResponse.json(
+      { error: "Validation failed", details: bodyParsed.error.flatten() },
+      { status: 400 }
+    );
+  }
+
+  const { name, config } = bodyParsed.data;
 
   const res = await fetch("https://api.instantly.ai/api/v2/campaigns", {
     method: "POST",
@@ -53,8 +68,8 @@ export async function POST(req: NextRequest) {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      name: body.name,
-      ...body.config,
+      name,
+      ...(config ?? {}),
     }),
   });
 

@@ -9,11 +9,26 @@ const upsertSchema = z.object({
   isActive: z.boolean().optional(),
 });
 
+function redactSensitiveFields(config: Record<string, unknown>) {
+  const sensitiveKeys = ["apiKey", "api_key", "password", "secret", "token"];
+  const result = { ...config };
+  for (const key of sensitiveKeys) {
+    if (key in result && typeof result[key] === "string") {
+      result[key] = "***";
+    }
+  }
+  return result;
+}
+
 export async function GET() {
   const configs = await prisma.integrationConfig.findMany({
     orderBy: { provider: "asc" },
   });
-  return NextResponse.json(configs);
+  const redacted = configs.map((c) => ({
+    ...c,
+    config: c.config ? redactSensitiveFields(JSON.parse(c.config as string)) : null,
+  }));
+  return NextResponse.json(redacted);
 }
 
 export async function POST(req: NextRequest) {
@@ -28,7 +43,9 @@ export async function POST(req: NextRequest) {
 
   const { provider, type, config, isActive } = parsed.data;
 
-  // Deactivate other integrations of the same type when activating a new one
+  // When activating a new integration, deactivate all other integrations of the
+  // same type so only one provider per channel type can be active at a time.
+  // Skip deactivation if isActive is explicitly set to false.
   if (isActive !== false) {
     await prisma.integrationConfig.updateMany({
       where: { type, provider: { not: provider } },

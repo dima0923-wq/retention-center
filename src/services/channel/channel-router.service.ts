@@ -61,8 +61,9 @@ export class ChannelRouterService {
     }
 
     // If no A/B test, fall back to default script selection
+    let selectedScript: Awaited<ReturnType<typeof prisma.script.findFirst>> | null = null;
     if (!scriptId) {
-      const script = await prisma.script.findFirst({
+      selectedScript = await prisma.script.findFirst({
         where: {
           OR: [
             { campaignId: campaign.id, type: channel },
@@ -72,10 +73,10 @@ export class ChannelRouterService {
         orderBy: { campaignId: "desc" },
       });
 
-      if (!script) {
+      if (!selectedScript) {
         return { error: `No script found for channel ${channel}` };
       }
-      scriptId = script.id;
+      scriptId = selectedScript.id;
     }
 
     const attempt = await prisma.contactAttempt.create({
@@ -90,10 +91,12 @@ export class ChannelRouterService {
       },
     });
 
-    // Fetch the full script object for channel providers
-    const selectedScript = await prisma.script.findUnique({
-      where: { id: scriptId },
-    });
+    // If we didn't fetch the script above (A/B test path), fetch it now
+    if (!selectedScript) {
+      selectedScript = await prisma.script.findUnique({
+        where: { id: scriptId },
+      });
+    }
 
     if (!selectedScript) {
       return { error: `Script ${scriptId} not found` };
@@ -111,7 +114,7 @@ export class ChannelRouterService {
         result = await SmsService.sendSms(lead, selectedScript);
         break;
       case "EMAIL":
-        result = await InstantlyService.sendEmail(lead, selectedScript);
+        result = await InstantlyService.sendEmail(lead, selectedScript, { campaignId: campaign.id });
         break;
       default:
         result = { error: `Unknown channel: ${channel}` };

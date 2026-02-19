@@ -31,7 +31,7 @@ import { TemplateVariableInserter } from "@/components/scripts/TemplateVariableI
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Campaign = { id: string; name: string };
+type Campaign = { id: string; name: string; status?: number };
 type VapiAssistant = { id: string; name: string };
 type VapiPhoneNumber = { id: string; number: string; name?: string };
 type VapiVoice = { id: string; name: string; provider?: string };
@@ -67,21 +67,20 @@ function EmailTab({ campaigns }: { campaigns: Campaign[] }) {
       toast.error("Please fill in To, Subject, and Body.");
       return;
     }
+    if (campaignId === "__none__") {
+      toast.error("Please select an Instantly campaign.");
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch("/api/test-send/email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          to,
-          subject,
-          body,
-          campaignId: campaignId === "__none__" ? undefined : campaignId,
-        }),
+        body: JSON.stringify({ to, subject, body, campaignId }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to send email");
-      toast.success("Email sent successfully");
+      toast.success("Lead added to campaign. Email will be sent per campaign schedule.");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to send email");
     } finally {
@@ -135,20 +134,29 @@ function EmailTab({ campaigns }: { campaigns: Campaign[] }) {
         </div>
 
         <div className="space-y-1.5">
-          <Label>Campaign (optional)</Label>
+          <Label>Instantly Campaign</Label>
           <Select value={campaignId} onValueChange={setCampaignId}>
             <SelectTrigger className="w-full">
-              <SelectValue placeholder="No campaign" />
+              <SelectValue placeholder="Select campaign" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="__none__">No campaign</SelectItem>
+              <SelectItem value="__none__">Select a campaign...</SelectItem>
               {campaigns.map((c) => (
                 <SelectItem key={c.id} value={c.id}>
-                  {c.name}
+                  {c.name} {c.status === 1 ? "(Active)" : c.status === 3 ? "(Completed)" : ""}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
+          {campaigns.length === 0 && (
+            <p className="text-xs text-muted-foreground">
+              No campaigns found. Create a campaign in Instantly first.
+            </p>
+          )}
+          <p className="text-xs text-muted-foreground">
+            The lead will be added to this campaign and emailed per the campaign schedule.
+            Make sure the campaign is Active for immediate sending.
+          </p>
         </div>
 
         <Button onClick={handleSend} disabled={loading} className="w-full sm:w-auto">
@@ -511,10 +519,19 @@ export default function TestSendPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
 
   useEffect(() => {
-    fetch("/api/campaigns?pageSize=100")
-      .then((r) => r.json())
+    fetch("/api/integrations/instantly/campaigns")
+      .then((r) => r.ok ? r.json() : null)
       .then((data) => {
-        if (Array.isArray(data?.data)) setCampaigns(data.data);
+        if (data) {
+          const items = data.items ?? data.campaigns ?? [];
+          setCampaigns(
+            items.map((c: { id: string; name: string; status?: number }) => ({
+              id: c.id,
+              name: c.name,
+              status: c.status,
+            }))
+          );
+        }
       })
       .catch(() => {});
   }, []);
@@ -522,7 +539,7 @@ export default function TestSendPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold tracking-tight">Test Send</h2>
+        <h2 className="text-2xl font-bold tracking-tight">Send a test</h2>
         <p className="text-muted-foreground mt-1">
           Send a one-off test email, SMS, or call to verify your integrations.
         </p>

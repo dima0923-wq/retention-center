@@ -26,7 +26,7 @@ export default function EditCampaignPage() {
     startDate?: string | null;
     endDate?: string | null;
     instantlySync?: boolean;
-    emailSequence?: Array<{ subject: string; body: string; delayValue: number; delayUnit: "hours" | "days" }>;
+    emailSequence?: Array<{ subject: string; body: string; delayValue: number; delayUnit: "HOURS" | "DAYS" | "WEEKS" }>;
     autoAssign?: { enabled: boolean; sources?: ("META" | "API" | "MANUAL" | "BULK")[]; maxLeads?: number; executionMode?: "parallel" | "sequential" };
     vapiConfig?: VapiConfig;
   } | null>(null);

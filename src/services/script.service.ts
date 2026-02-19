@@ -95,15 +95,24 @@ export class ScriptService {
   }
 
   static async delete(id: string) {
-    const script = await prisma.script.findUnique({
-      where: { id },
-      include: { campaign: true },
+    return prisma.$transaction(async (tx) => {
+      const script = await tx.script.findUnique({
+        where: { id },
+        include: { campaign: true },
+      });
+      if (!script) throw new Error("Script not found");
+      if (script.campaign?.status === "ACTIVE") {
+        throw new Error("Cannot delete script from active campaign");
+      }
+      const activeStepUsage = await tx.sequenceStep.findFirst({
+        where: { scriptId: id, sequence: { status: "ACTIVE" } },
+      });
+      if (activeStepUsage) {
+        throw new Error("Script is used in an active sequence");
+      }
+      await tx.script.delete({ where: { id } });
+      return script;
     });
-    if (!script) return null;
-    if (script.campaign && script.campaign.status === "ACTIVE") {
-      throw new Error("Cannot delete a script used in an active campaign");
-    }
-    return prisma.script.delete({ where: { id } });
   }
 
   static async duplicate(id: string) {

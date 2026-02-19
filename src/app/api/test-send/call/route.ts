@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { z } from "zod";
 
 const callSchema = z.object({
-  to: z.string().min(1, "Phone number is required"),
+  to: z.string().regex(/^\+[1-9]\d{1,14}$/, "Phone must be in E.164 format"),
   assistantId: z.string().optional(),
   phoneNumberId: z.string().optional(),
   voice: z.string().optional(),

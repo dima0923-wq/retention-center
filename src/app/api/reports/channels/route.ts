@@ -8,6 +8,9 @@ export async function GET(request: NextRequest) {
     const to = searchParams.get("to");
     const channel = searchParams.get("channel");
 
+    if (from && isNaN(new Date(from).getTime())) return NextResponse.json({ error: "Invalid 'from' date" }, { status: 400 });
+    if (to && isNaN(new Date(to).getTime())) return NextResponse.json({ error: "Invalid 'to' date" }, { status: 400 });
+
     const range = {
       from: from ? new Date(from) : undefined,
       to: to ? new Date(to) : undefined,

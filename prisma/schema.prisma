@@ -21,8 +21,10 @@ model Lead {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  campaignLeads   CampaignLead[]
-  contactAttempts ContactAttempt[]
+  campaignLeads        CampaignLead[]
+  contactAttempts      ContactAttempt[]
+  sequenceEnrollments  SequenceEnrollment[]
+  conversions          Conversion[]
 
   @@index([email])
   @@index([phone])
@@ -41,8 +43,13 @@ model Campaign {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  campaignLeads CampaignLead[]
-  scripts       Script[]
+  campaignLeads   CampaignLead[]
+  scripts         Script[]
+  contactAttempts ContactAttempt[]
+  abTests         ABTest[]
+  conversions     Conversion[]
+
+  @@index([status])
 }
 
 model CampaignLead {
@@ -57,6 +64,8 @@ model CampaignLead {
   lead     Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
 
   @@unique([campaignId, leadId])
+  @@index([campaignId])
+  @@index([leadId])
 }
 
 model Script {
@@ -72,6 +81,10 @@ model Script {
 
   campaign        Campaign?        @relation(fields: [campaignId], references: [id], onDelete: SetNull)
   contactAttempts ContactAttempt[]
+  sequenceSteps   SequenceStep[]
+
+  @@index([campaignId])
+  @@index([type])
 }
 
 model ContactAttempt {
@@ -90,11 +103,16 @@ model ContactAttempt {
   result      String?
   notes       String?
 
-  lead   Lead    @relation(fields: [leadId], references: [id], onDelete: Cascade)
-  script Script? @relation(fields: [scriptId], references: [id], onDelete: SetNull)
+  lead     Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  campaign Campaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  script   Script?   @relation(fields: [scriptId], references: [id], onDelete: SetNull)
+
+  stepExecutions SequenceStepExecution[]
+  conversions    Conversion[]
 
   @@index([leadId])
   @@index([channel])
+  @@index([campaignId])
 }
 
 model IntegrationConfig {
@@ -108,18 +126,22 @@ model IntegrationConfig {
 }
 
 model Conversion {
-  id            String   @id @default(cuid())
-  leadId        String?
-  campaignId    String?
-  channel       String?
-  revenue       Float    @default(0)
-  status        String   @default("lead")
-  subId         String?
-  clickId       String?
-  source        String   @default("keitaro")
-  postbackData  String?
+  id               String   @id @default(cuid())
+  leadId           String?
+  campaignId       String?
+  channel          String?
+  revenue          Float    @default(0)
+  status           String   @default("lead")
+  subId            String?
+  clickId          String?
+  source           String   @default("keitaro")
+  postbackData     String?
   contactAttemptId String?
-  createdAt     DateTime @default(now())
+  createdAt        DateTime @default(now())
+
+  lead           Lead?           @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  campaign       Campaign?       @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  contactAttempt ContactAttempt? @relation(fields: [contactAttemptId], references: [id], onDelete: SetNull)
 
   @@index([leadId])
   @@index([campaignId])
@@ -156,6 +178,90 @@ model ABTest {
   statsA      String    @default("{}")
   statsB      String    @default("{}")
 
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
   @@index([campaignId])
   @@index([status])
+}
+
+// ─── Retention Sequence Models ───────────────────────────────────────────────
+
+model RetentionSequence {
+  id            String   @id @default(cuid())
+  name          String
+  description   String?
+  status        String   @default("DRAFT") // DRAFT | ACTIVE | PAUSED | ARCHIVED
+  channels      String   @default("[]") // JSON array of enabled channels
+  triggerType   String   @default("manual") // new_lead | no_conversion | manual
+  triggerConfig String   @default("{}") // JSON - source filters, campaign filters, etc.
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  steps       SequenceStep[]
+  enrollments SequenceEnrollment[]
+
+  @@index([status])
+  @@index([triggerType])
+}
+
+model SequenceStep {
+  id         String   @id @default(cuid())
+  sequenceId String
+  stepOrder  Int
+  channel    String // EMAIL | SMS | CALL
+  scriptId   String?
+  delayValue Int      @default(0)
+  delayUnit  String   @default("HOURS") // HOURS | DAYS | WEEKS
+  conditions String   @default("{}") // JSON - e.g. "only if not converted"
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  sequence   RetentionSequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  script     Script?           @relation(fields: [scriptId], references: [id], onDelete: SetNull)
+  executions SequenceStepExecution[]
+
+  @@index([sequenceId])
+  @@index([stepOrder])
+}
+
+model SequenceEnrollment {
+  id          String    @id @default(cuid())
+  sequenceId  String
+  leadId      String
+  status      String    @default("ACTIVE") // ACTIVE | PAUSED | COMPLETED | CANCELLED | CONVERTED
+  currentStep Int       @default(0)
+  enrolledAt  DateTime  @default(now())
+  completedAt DateTime?
+  lastStepAt  DateTime?
+  meta        String    @default("{}") // JSON for tracking
+
+  sequence   RetentionSequence      @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  lead       Lead                   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  executions SequenceStepExecution[]
+
+  @@unique([sequenceId, leadId])
+  @@index([sequenceId])
+  @@index([status])
+  @@index([leadId])
+}
+
+model SequenceStepExecution {
+  id                String    @id @default(cuid())
+  enrollmentId      String
+  stepId            String
+  contactAttemptId  String?
+  status            String    @default("PENDING") // PENDING | SCHEDULED | SENT | DELIVERED | FAILED | SKIPPED
+  scheduledAt       DateTime?
+  executedAt        DateTime?
+  result            String    @default("{}") // JSON
+
+  enrollment     SequenceEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  step           SequenceStep       @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  contactAttempt ContactAttempt?    @relation(fields: [contactAttemptId], references: [id], onDelete: SetNull)
+
+  @@index([enrollmentId])
+  @@index([stepId])
+  @@index([status])
+  @@index([scheduledAt])
 }

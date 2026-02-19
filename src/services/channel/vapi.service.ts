@@ -217,13 +217,19 @@ export class VapiService {
 
       updateData.result = JSON.stringify(resultObj);
     } else if (data.call.status === "failed" || data.call.status === "no-answer") {
-      updateData.status = data.call.status === "no-answer" ? "NO_ANSWER" : "FAILED";
+      updateData.status = "FAILED";
       updateData.completedAt = new Date();
-      updateData.result = JSON.stringify({
+      const existingResult = attempt.result ? JSON.parse(attempt.result as string) : {};
+      const resultObj: Record<string, unknown> = {
+        ...existingResult,
         callId: data.call.id,
         status: data.call.status,
         transcript: data.call.transcript ?? null,
-      });
+      };
+      if (data.call.status === "no-answer") {
+        resultObj.reason = "no_answer";
+      }
+      updateData.result = JSON.stringify(resultObj);
     } else if (data.call.status === "in-progress") {
       updateData.status = "IN_PROGRESS";
     }

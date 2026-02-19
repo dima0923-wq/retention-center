@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { ABTestService } from "@/services/ab-test.service";
+import { RetentionSequenceService } from "@/services/retention-sequence.service";
 
 interface KeitaroParams {
   sub_id?: string;
@@ -9,8 +10,14 @@ interface KeitaroParams {
   click_id?: string;
 }
 
-async function handlePostback(params: KeitaroParams) {
+async function handlePostback(params: KeitaroParams): Promise<{ id: string } | NextResponse> {
   const { sub_id, status = "lead", payout, click_id } = params;
+
+  // Idempotency: avoid duplicate conversions for same sub_id + source
+  if (sub_id) {
+    const existing = await prisma.conversion.findFirst({ where: { subId: sub_id, source: "keitaro" } });
+    if (existing) return NextResponse.json({ status: "duplicate", id: existing.id });
+  }
 
   // Look up lead by sub_id matching contactAttempt.id or lead.externalId
   let leadId: string | null = null;
@@ -89,6 +96,11 @@ async function handlePostback(params: KeitaroParams) {
         where: { id: leadId },
         data: { status: "CONVERTED" },
       });
+
+      // Auto-complete all active sequence enrollments for this lead
+      RetentionSequenceService.markConverted(leadId).catch((err) => {
+        console.error("Failed to mark sequence enrollments as converted:", err);
+      });
     } else if (status === "reject") {
       await prisma.lead.update({
         where: { id: leadId },
@@ -101,6 +113,12 @@ async function handlePostback(params: KeitaroParams) {
 }
 
 export async function GET(req: NextRequest) {
+  const secret = req.nextUrl.searchParams.get("secret") || req.headers.get("x-webhook-secret");
+  const expectedSecret = process.env.KEITARO_WEBHOOK_SECRET;
+  if (expectedSecret && secret !== expectedSecret) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const url = req.nextUrl;
     const params: KeitaroParams = {
@@ -110,8 +128,9 @@ export async function GET(req: NextRequest) {
       click_id: url.searchParams.get("click_id") || undefined,
     };
 
-    const conversion = await handlePostback(params);
-    return NextResponse.json({ received: true, conversion_id: conversion.id });
+    const result = await handlePostback(params);
+    if (result instanceof NextResponse) return result;
+    return NextResponse.json({ received: true, conversion_id: result.id });
   } catch (error) {
     console.error("Keitaro GET postback error:", error);
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
@@ -119,6 +138,12 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const secret = req.nextUrl.searchParams.get("secret") || req.headers.get("x-webhook-secret");
+  const expectedSecret = process.env.KEITARO_WEBHOOK_SECRET;
+  if (expectedSecret && secret !== expectedSecret) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const body = await req.json();
     const params: KeitaroParams = {
@@ -128,8 +153,9 @@ export async function POST(req: NextRequest) {
       click_id: body.click_id,
     };
 
-    const conversion = await handlePostback(params);
-    return NextResponse.json({ received: true, conversion_id: conversion.id });
+    const result = await handlePostback(params);
+    if (result instanceof NextResponse) return result;
+    return NextResponse.json({ received: true, conversion_id: result.id });
   } catch (error) {
     console.error("Keitaro POST postback error:", error);
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });

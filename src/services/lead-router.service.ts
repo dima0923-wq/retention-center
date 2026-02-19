@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import type { Lead, Campaign } from "@/generated/prisma/client";
 import { ChannelRouterService } from "./channel/channel-router.service";
+import { RetentionSequenceService } from "./retention-sequence.service";
 
 const CHANNEL_PRIORITY: Record<string, number> = {
   EMAIL: 0,
@@ -28,6 +29,10 @@ export class LeadRouterService {
       if (existing) continue;
 
       // Check maxLeads limit
+      // NOTE: TOCTOU race condition — between counting and creating the CampaignLead entry,
+      // another concurrent request could also pass the limit check and both get inserted,
+      // briefly exceeding maxLeads. Acceptable for now; fix with a DB-level unique constraint
+      // or advisory lock if strict enforcement is required.
       const meta = campaign.meta ? JSON.parse(campaign.meta as string) : {};
       const autoAssign = meta.autoAssign;
       if (autoAssign?.maxLeads) {
@@ -49,6 +54,11 @@ export class LeadRouterService {
 
       assigned.push(campaign.id);
     }
+
+    // Auto-enroll in matching retention sequences
+    RetentionSequenceService.autoEnrollByTrigger(leadId, "new_lead", lead.source).catch((err) => {
+      console.error(`Sequence auto-enrollment failed for lead ${leadId}:`, err);
+    });
 
     return { assigned };
   }

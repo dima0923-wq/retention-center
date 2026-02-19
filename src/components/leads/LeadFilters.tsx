@@ -59,7 +59,7 @@ export function LeadFilters() {
     searchParams.has("dateTo");
 
   return (
-    <div className="flex flex-wrap items-center gap-3">
+    <div key={searchParams.toString()} className="flex flex-wrap items-center gap-3">
       <Input
         placeholder="Search by name, email, phone..."
         className="w-64"

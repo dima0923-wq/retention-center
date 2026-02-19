@@ -37,14 +37,19 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
 export async function DELETE(_req: NextRequest, context: RouteContext) {
   try {
     const { id } = await context.params;
-    const script = await ScriptService.delete(id);
-    if (!script) {
-      return NextResponse.json({ error: "Script not found" }, { status: 404 });
-    }
+    await ScriptService.delete(id);
     return NextResponse.json({ success: true });
   } catch (error) {
-    if (error instanceof Error && error.message.includes("active campaign")) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
+    if (error instanceof Error) {
+      if (error.message === "Script not found") {
+        return NextResponse.json({ error: error.message }, { status: 404 });
+      }
+      if (
+        error.message.includes("active campaign") ||
+        error.message.includes("active sequence")
+      ) {
+        return NextResponse.json({ error: error.message }, { status: 400 });
+      }
     }
     console.error("DELETE /api/scripts/[id] error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

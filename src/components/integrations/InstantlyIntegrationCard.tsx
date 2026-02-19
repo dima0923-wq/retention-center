@@ -13,6 +13,13 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Mail,
   Loader2,
   CheckCircle,
@@ -57,11 +64,12 @@ export function InstantlyIntegrationCard() {
       ]);
       if (accRes.ok) {
         const accData = await accRes.json();
-        setAccountCount(accData.total ?? accData.accounts?.length ?? 0);
+        const items = accData.items ?? accData.accounts ?? [];
+        setAccountCount(accData.total ?? items.length ?? 0);
       }
       if (campRes.ok) {
         const campData = await campRes.json();
-        setCampaigns(campData.campaigns ?? []);
+        setCampaigns(campData.items ?? campData.campaigns ?? []);
       }
     } catch {
       // Silently fail — details are supplementary
@@ -199,18 +207,34 @@ export function InstantlyIntegrationCard() {
           />
         </div>
 
-        {/* Default Campaign ID */}
+        {/* Default Campaign */}
         <div className="space-y-1.5">
-          <Label htmlFor="instantly-campaignId" className="text-xs">
-            Default Campaign ID
-          </Label>
-          <Input
-            id="instantly-campaignId"
-            type="text"
-            placeholder="Campaign ID for lead assignment"
-            value={config.defaultCampaignId ?? ""}
-            onChange={(e) => updateField("defaultCampaignId", e.target.value)}
-          />
+          <Label className="text-xs">Default Campaign</Label>
+          {isActive && campaigns.length > 0 ? (
+            <Select
+              value={config.defaultCampaignId || undefined}
+              onValueChange={(val) => updateField("defaultCampaignId", val)}
+            >
+              <SelectTrigger className="h-9 text-sm">
+                <SelectValue placeholder="Select default campaign" />
+              </SelectTrigger>
+              <SelectContent>
+                {campaigns.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <Input
+              id="instantly-campaignId"
+              type="text"
+              placeholder={isActive && loadingDetails ? "Loading campaigns..." : "Save API key first"}
+              value={config.defaultCampaignId ?? ""}
+              onChange={(e) => updateField("defaultCampaignId", e.target.value)}
+            />
+          )}
         </div>
 
         {/* Webhook URL */}

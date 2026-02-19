@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-type DateRangePreset = "7d" | "30d" | "90d" | "custom";
+type DateRangePreset = "7d" | "30d" | "90d";
 
 type DateRangePickerProps = {
   selected: DateRangePreset;

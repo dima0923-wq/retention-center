@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Loader2, CheckCircle, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -15,6 +15,11 @@ export function TestConnectionButton({
 }) {
   const [state, setState] = useState<TestState>("idle");
   const [errorMsg, setErrorMsg] = useState("");
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => { if (timeoutRef.current) clearTimeout(timeoutRef.current); };
+  }, []);
 
   const handleTest = async () => {
     setState("testing");
@@ -37,7 +42,7 @@ export function TestConnectionButton({
       setErrorMsg("Network error");
       onResult?.(false);
     }
-    setTimeout(() => setState("idle"), 3000);
+    timeoutRef.current = setTimeout(() => setState("idle"), 3000);
   };
 
   return (

@@ -15,6 +15,16 @@ export async function POST(
   try {
     const { id } = await params;
 
+    // Validate body first
+    const body = await request.json();
+    const parsed = sendSmsSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "Validation failed", details: parsed.error.flatten() },
+        { status: 400 }
+      );
+    }
+
     // Look up lead
     const lead = await prisma.lead.findUnique({ where: { id } });
     if (!lead) {
@@ -32,16 +42,6 @@ export async function POST(
     if (!lead.phone) {
       return NextResponse.json(
         { error: "Lead has no phone number" },
-        { status: 400 }
-      );
-    }
-
-    // Validate body
-    const body = await request.json();
-    const parsed = sendSmsSchema.safeParse(body);
-    if (!parsed.success) {
-      return NextResponse.json(
-        { error: "Validation failed", details: parsed.error.flatten() },
         { status: 400 }
       );
     }

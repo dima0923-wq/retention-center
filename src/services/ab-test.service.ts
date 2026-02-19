@@ -104,18 +104,16 @@ export class ABTestService {
     variant: "A" | "B",
     converted: boolean
   ) {
-    const test = await prisma.aBTest.findUniqueOrThrow({
-      where: { id: testId },
-    });
-
     const field = variant === "A" ? "statsA" : "statsB";
-    const stats = parseStats(test[field]);
-    stats.sent += 1;
-    if (converted) stats.converted += 1;
-
-    await prisma.aBTest.update({
-      where: { id: testId },
-      data: { [field]: JSON.stringify(stats) },
+    await prisma.$transaction(async (tx) => {
+      const test = await tx.aBTest.findUniqueOrThrow({ where: { id: testId } });
+      const stats = parseStats(test[field]);
+      stats.sent += 1;
+      if (converted) stats.converted += 1;
+      await tx.aBTest.update({
+        where: { id: testId },
+        data: { [field]: JSON.stringify(stats) },
+      });
     });
   }
 

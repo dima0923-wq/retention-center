@@ -224,7 +224,27 @@ export class TelecomProvider implements SmsProvider {
     if (!this.username || !this.password) {
       return { success: false, error: "Missing required config fields" };
     }
-    return { success: true };
+
+    try {
+      // Make a real API call to verify credentials — query account balance/info
+      const url = this.buildUrl({ command: "balance" });
+      const res = await fetch(url, { method: "GET" });
+
+      if (!res.ok) {
+        return { success: false, error: `HTTP ${res.status}` };
+      }
+
+      // 23telecom returns JSON; try to parse it to confirm the API is reachable
+      const data = (await res.json()) as { balance?: number; error?: string };
+
+      if (data.error) {
+        return { success: false, error: data.error };
+      }
+
+      return { success: true, balance: data.balance };
+    } catch (e) {
+      return { success: false, error: (e as Error).message };
+    }
   }
 }
 

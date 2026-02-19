@@ -6,7 +6,9 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 function createPrismaClient() {
-  const adapter = new PrismaLibSql({ url: process.env.DATABASE_URL! });
+  const dbUrl = process.env.DATABASE_URL;
+  if (!dbUrl) throw new Error("DATABASE_URL environment variable is required");
+  const adapter = new PrismaLibSql({ url: dbUrl });
   return new PrismaClient({ adapter });
 }
 

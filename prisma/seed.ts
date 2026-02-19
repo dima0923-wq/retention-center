@@ -1,13 +1,20 @@
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaLibSql } from "@prisma/adapter-libsql";
 
-const adapter = new PrismaLibSql({ url: "file:./dev.db" });
+const adapter = new PrismaLibSql({ url: process.env.DATABASE_URL || "file:./dev.db" });
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
   console.log("Seeding database...");
 
-  // Clean existing data
+  // Clean existing data (dependent models first)
+  await prisma.sequenceStepExecution.deleteMany();
+  await prisma.sequenceEnrollment.deleteMany();
+  await prisma.sequenceStep.deleteMany();
+  await prisma.retentionSequence.deleteMany();
+  await prisma.conversion.deleteMany();
+  await prisma.conversionRule.deleteMany();
+  await prisma.aBTest.deleteMany();
   await prisma.contactAttempt.deleteMany();
   await prisma.campaignLead.deleteMany();
   await prisma.script.deleteMany();

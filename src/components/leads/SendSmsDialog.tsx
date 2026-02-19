@@ -122,6 +122,12 @@ export function SendSmsDialog({ lead, open, onOpenChange, onSuccess }: SendSmsDi
         body: JSON.stringify(body),
       });
 
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error || "Failed to send SMS");
+        return;
+      }
+
       const data = await res.json();
 
       if (data.success) {

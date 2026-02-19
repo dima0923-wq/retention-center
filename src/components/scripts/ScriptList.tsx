@@ -87,7 +87,7 @@ export function ScriptList({ scripts, onDuplicate, onDelete }: Props) {
               {script.isDefault && <Badge variant="secondary">Default</Badge>}
             </TableCell>
             <TableCell className="text-muted-foreground">
-              {format(new Date(script.updatedAt), "MMM d, yyyy")}
+              {format(script.updatedAt ? new Date(script.updatedAt) : new Date(), "MMM d, yyyy")}
             </TableCell>
             <TableCell>
               <DropdownMenu>

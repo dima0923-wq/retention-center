@@ -62,6 +62,13 @@ export async function DELETE(
     const lead = await LeadService.softDelete(id);
     return NextResponse.json(lead);
   } catch (error) {
+    if (
+      error instanceof Error &&
+      "code" in error &&
+      (error as { code: string }).code === "P2025"
+    ) {
+      return NextResponse.json({ error: "Lead not found" }, { status: 404 });
+    }
     console.error("DELETE /api/leads/[id] error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }

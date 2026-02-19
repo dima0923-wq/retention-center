@@ -4,7 +4,7 @@ import { z } from "zod";
 import { createSmsProvider } from "@/services/channel/sms.service";
 
 const smsSchema = z.object({
-  to: z.string().min(1, "Phone number is required"),
+  to: z.string().regex(/^\+[1-9]\d{1,14}$/, "Phone must be in E.164 format"),
   message: z.string().min(1, "Message is required"),
   provider: z.string().optional(),
 });

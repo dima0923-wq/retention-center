@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { CampaignService } from "@/services/campaign.service";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -7,7 +8,9 @@ export async function POST(req: NextRequest, context: RouteContext) {
   try {
     const { id } = await context.params;
     const body = await req.json();
-    const { action } = body as { action: string };
+    const parsed = z.object({ action: z.enum(["launch", "pause"]) }).safeParse(body);
+    if (!parsed.success) return NextResponse.json({ error: "Invalid action" }, { status: 400 });
+    const { action } = parsed.data;
 
     if (action === "launch") {
       const result = await CampaignService.syncToInstantly(id);
@@ -22,8 +25,6 @@ export async function POST(req: NextRequest, context: RouteContext) {
       // The campaign status on our side is managed via the regular pause route
       return NextResponse.json({ success: true });
     }
-
-    return NextResponse.json({ error: "Invalid action" }, { status: 400 });
   } catch (error) {
     console.error("POST /api/campaigns/[id]/instantly error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

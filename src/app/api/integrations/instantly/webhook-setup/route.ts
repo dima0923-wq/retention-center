@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { z } from "zod";
+
+const webhookUrlSchema = z.object({ webhook_url: z.string().url() });
 
 const ALL_EVENTS = [
   "email_sent",
@@ -30,6 +33,14 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
+
+  // Validate webhook_url is a proper URL whenever it is provided
+  if (body.webhook_url !== undefined) {
+    const urlParsed = webhookUrlSchema.safeParse({ webhook_url: body.webhook_url });
+    if (!urlParsed.success) {
+      return NextResponse.json({ error: "Invalid webhook URL" }, { status: 400 });
+    }
+  }
 
   // Auto-register all event types at once
   if (body.auto) {

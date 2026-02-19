@@ -353,14 +353,26 @@ export class InstantlyService {
 
   static async sendEmail(
     lead: Lead,
-    script: Script
+    script: Script,
+    options?: { campaignId?: string }
   ): Promise<{ providerRef: string } | { error: string }> {
     const config = await getConfig();
     if (!config) return { error: "Instantly integration not configured or inactive" };
 
     if (!lead.email) return { error: "Lead has no email address" };
 
-    const campaignId = config.defaultCampaignId;
+    let instantlyCampaignId = config.defaultCampaignId;
+    if (options?.campaignId) {
+      const campaign = await prisma.campaign.findUnique({ where: { id: options.campaignId } });
+      if (campaign) {
+        try {
+          const meta = JSON.parse(campaign.meta || "{}");
+          if (meta.instantlyCampaignId) instantlyCampaignId = meta.instantlyCampaignId;
+        } catch {}
+      }
+    }
+
+    const campaignId = instantlyCampaignId;
     if (!campaignId) return { error: "No default campaign ID configured for Instantly" };
 
     const content = script.content ? replaceVariables(script.content, lead) : "";

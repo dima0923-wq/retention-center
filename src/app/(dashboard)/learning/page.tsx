@@ -18,12 +18,18 @@ import {
   Phone,
   Lightbulb,
   FlaskConical,
+  Workflow,
+  Shuffle,
+  Zap,
 } from "lucide-react";
 import { StatsCard } from "@/components/reports/StatsCard";
 import { WordPerformance } from "@/components/learning/WordPerformance";
 import { InsightCard } from "@/components/learning/InsightCard";
 import { ConversionHeatmap } from "@/components/learning/ConversionHeatmap";
 import { ABTestCard } from "@/components/learning/ABTestCard";
+import { SequencePerformance } from "@/components/learning/SequencePerformance";
+import { ChannelMixChart } from "@/components/learning/ChannelMixChart";
+import { RecommendedActions } from "@/components/learning/RecommendedActions";
 
 type ConversionStats = {
   totalConversions: number;
@@ -100,7 +106,7 @@ export default function LearningPage() {
       if (statsRes.ok) setStats(await statsRes.json());
       if (funnelRes.ok) {
         const data = await funnelRes.json();
-        setFunnel(Array.isArray(data) ? data : data.stages ?? []);
+        setFunnel(Array.isArray(data) ? data : data.stages ?? data.funnel ?? []);
       }
       if (insightsRes.ok) {
         const data = await insightsRes.json();
@@ -170,6 +176,56 @@ export default function LearningPage() {
             />
           </div>
 
+          {/* Recommended Actions */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Zap className="h-4 w-4 text-amber-500" />
+                <CardTitle className="text-sm font-medium">
+                  Recommended Actions
+                </CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <RecommendedActions />
+            </CardContent>
+          </Card>
+
+          {/* Sequence Performance */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Workflow className="h-4 w-4 text-blue-500" />
+                <CardTitle className="text-sm font-medium">
+                  Sequence Performance
+                </CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <SequencePerformance />
+            </CardContent>
+          </Card>
+
+          {/* Channel Mix + Timing row */}
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Shuffle className="h-4 w-4 text-violet-500" />
+                  <CardTitle className="text-sm font-medium">
+                    Channel Mix Optimization
+                  </CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <ChannelMixChart />
+              </CardContent>
+            </Card>
+
+            {/* Heatmap */}
+            <ConversionHeatmap />
+          </div>
+
           {/* Word Performance */}
           <Card>
             <CardHeader>
@@ -214,56 +270,50 @@ export default function LearningPage() {
             </div>
           )}
 
-          {/* Conversion Funnel + Heatmap row */}
-          <div className="grid gap-4 lg:grid-cols-2">
-            {/* Funnel */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm font-medium">
-                  Conversion Funnel
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {funnel.length === 0 ? (
-                  <div className="text-muted-foreground text-sm text-center py-8">
-                    No funnel data yet.
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {funnel.map((stage, i) => {
-                      const maxCount = funnel[0]?.count ?? 1;
-                      const pct =
-                        maxCount > 0 ? (stage.count / maxCount) * 100 : 0;
-                      return (
-                        <div key={stage.stage} className="space-y-1">
-                          <div className="flex items-center justify-between text-sm">
-                            <span className="font-medium">{stage.stage}</span>
-                            <span className="text-muted-foreground">
-                              {stage.count.toLocaleString()}
-                              {i > 0 && funnel[i - 1].count > 0 && (
-                                <span className="ml-1 text-xs">
-                                  ({((stage.count / funnel[i - 1].count) * 100).toFixed(0)}%)
-                                </span>
-                              )}
-                            </span>
-                          </div>
-                          <div className="h-3 bg-muted rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-primary rounded-full transition-all"
-                              style={{ width: `${pct}%` }}
-                            />
-                          </div>
+          {/* Conversion Funnel */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-medium">
+                Conversion Funnel
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {funnel.length === 0 ? (
+                <div className="text-muted-foreground text-sm text-center py-8">
+                  No funnel data yet.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {funnel.map((stage, i) => {
+                    const maxCount = funnel[0]?.count ?? 1;
+                    const pct =
+                      maxCount > 0 ? (stage.count / maxCount) * 100 : 0;
+                    return (
+                      <div key={stage.stage} className="space-y-1">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="font-medium">{stage.stage}</span>
+                          <span className="text-muted-foreground">
+                            {stage.count.toLocaleString()}
+                            {i > 0 && funnel[i - 1].count > 0 && (
+                              <span className="ml-1 text-xs">
+                                ({((stage.count / funnel[i - 1].count) * 100).toFixed(0)}%)
+                              </span>
+                            )}
+                          </span>
                         </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Heatmap */}
-            <ConversionHeatmap />
-          </div>
+                        <div className="h-3 bg-muted rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-primary rounded-full transition-all"
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           {/* A/B Tests */}
           {abTests.length > 0 && (

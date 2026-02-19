@@ -66,6 +66,10 @@ export function CallScriptEditor({ config, onChange }: Props) {
   const [isCalling, setIsCalling] = useState(false);
 
   useEffect(() => {
+    setRawJson(JSON.stringify(config, null, 2));
+  }, [config]);
+
+  useEffect(() => {
     fetch("/api/integrations/vapi/assistants")
       .then((r) => r.json())
       .then((data) => { if (Array.isArray(data)) setAssistants(data); })
@@ -223,7 +227,7 @@ export function CallScriptEditor({ config, onChange }: Props) {
           <div>
             <Label>Model</Label>
             <Select
-              value={config.model || undefined}
+              value={config.model ?? undefined}
               onValueChange={(v) => updateField("model", v)}
             >
               <SelectTrigger className="mt-1">

@@ -32,11 +32,15 @@ const statusLabels: Record<string, string> = {
   CONVERTED: "Converted",
 };
 
+const STAGE_ORDER = ["NEW", "CONTACTED", "IN_PROGRESS", "CONVERTED"];
+
 export function ConversionFunnel({ data }: ConversionFunnelProps) {
-  const chartData = data.map((d) => ({
-    ...d,
-    label: statusLabels[d.status] ?? d.status,
-  }));
+  const chartData = [...data]
+    .sort((a, b) => STAGE_ORDER.indexOf(a.status) - STAGE_ORDER.indexOf(b.status))
+    .map((d) => ({
+      ...d,
+      label: statusLabels[d.status] ?? d.status,
+    }));
 
   return (
     <Card>

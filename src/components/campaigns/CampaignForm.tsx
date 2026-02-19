@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -48,7 +48,7 @@ type EmailStep = {
   subject: string;
   body: string;
   delayValue: number;
-  delayUnit: "hours" | "days";
+  delayUnit: "HOURS" | "DAYS" | "WEEKS";
 };
 
 type CampaignFormProps = {
@@ -102,9 +102,11 @@ export function CampaignForm({
   const instantlySync = watch("instantlySync") ?? false;
   const emailSequence = watch("emailSequence") ?? [];
   const contactDays = watch("contactDays") ?? [];
+  const hasCall = channels.includes("CALL");
   const autoAssign = watch("autoAssign");
 
   const [activeStepField, setActiveStepField] = useState<{ stepIdx: number; field: "subject" | "body" } | null>(null);
+  const stepIdsRef = useRef<string[]>([]);
 
   // VAPI campaign-level config — read from defaultValues.vapiConfig
   const [vapiConfig, setVapiConfig] = useState<VapiConfig>(() => {
@@ -118,20 +120,22 @@ export function CampaignForm({
   const [vapiVoices, setVapiVoices] = useState<VapiVoice[]>([]);
 
   useEffect(() => {
-    if (!channels.includes("CALL")) return;
-    fetch("/api/integrations/vapi/assistants")
+    if (!hasCall) return;
+    const controller = new AbortController();
+    fetch("/api/integrations/vapi/assistants", { signal: controller.signal })
       .then((r) => r.ok ? r.json() : [])
       .then((d) => setVapiAssistants(Array.isArray(d) ? d : []))
       .catch(() => {});
-    fetch("/api/integrations/vapi/phone-numbers")
+    fetch("/api/integrations/vapi/phone-numbers", { signal: controller.signal })
       .then((r) => r.ok ? r.json() : [])
       .then((d) => setVapiPhoneNumbers(Array.isArray(d) ? d : []))
       .catch(() => {});
-    fetch("/api/integrations/vapi/voices")
+    fetch("/api/integrations/vapi/voices", { signal: controller.signal })
       .then((r) => r.ok ? r.json() : [])
       .then((d) => setVapiVoices(Array.isArray(d) ? d : []))
       .catch(() => {});
-  }, [channels.includes("CALL")]); // eslint-disable-line react-hooks/exhaustive-deps
+    return () => controller.abort();
+  }, [hasCall]);
 
   const updateVapiConfig = (patch: Partial<VapiConfig>) => {
     setVapiConfig((prev) => {
@@ -150,13 +154,15 @@ export function CampaignForm({
   const addStep = () => {
     const newSteps: EmailStep[] = [
       ...emailSequence,
-      { subject: "", body: "", delayValue: 1, delayUnit: "days" },
+      { subject: "", body: "", delayValue: 1, delayUnit: "DAYS" },
     ];
+    stepIdsRef.current = [...stepIdsRef.current, crypto.randomUUID()];
     setValue("emailSequence", newSteps);
   };
 
   const removeStep = (index: number) => {
     const newSteps = emailSequence.filter((_, i) => i !== index);
+    stepIdsRef.current = stepIdsRef.current.filter((_, i) => i !== index);
     setValue("emailSequence", newSteps);
   };
 
@@ -374,7 +380,7 @@ export function CampaignForm({
               </div>
 
               {emailSequence.map((step, idx) => (
-                <Card key={idx} className="border-dashed">
+                <Card key={stepIdsRef.current[idx] ?? idx} className="border-dashed">
                   <CardContent className="pt-4 space-y-3">
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-medium">Step {idx + 1}</span>
@@ -406,8 +412,8 @@ export function CampaignForm({
                           onChange={(e) => updateStep(idx, "delayUnit", e.target.value)}
                           className="h-8 rounded-md border border-input bg-background px-2 text-sm"
                         >
-                          <option value="hours">hours</option>
-                          <option value="days">days</option>
+                          <option value="HOURS">hours</option>
+                          <option value="DAYS">days</option>
                         </select>
                         <Label className="text-xs text-muted-foreground">before sending</Label>
                       </div>
