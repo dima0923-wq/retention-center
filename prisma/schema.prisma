@@ -1,0 +1,107 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Lead {
+  id          String   @id @default(cuid())
+  externalId  String?
+  firstName   String
+  lastName    String
+  phone       String?
+  email       String?
+  source      String   @default("MANUAL")
+  status      String   @default("NEW")
+  meta        String?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  campaignLeads   CampaignLead[]
+  contactAttempts ContactAttempt[]
+
+  @@index([email])
+  @@index([phone])
+  @@index([status])
+}
+
+model Campaign {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  status      String    @default("DRAFT")
+  channels    String    @default("[]")
+  startDate   DateTime?
+  endDate     DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  campaignLeads CampaignLead[]
+  scripts       Script[]
+}
+
+model CampaignLead {
+  id          String    @id @default(cuid())
+  campaignId  String
+  leadId      String
+  status      String    @default("PENDING")
+  assignedAt  DateTime  @default(now())
+  completedAt DateTime?
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  lead     Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, leadId])
+}
+
+model Script {
+  id          String   @id @default(cuid())
+  name        String
+  type        String
+  content     String?
+  vapiConfig  String?
+  campaignId  String?
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  campaign        Campaign?        @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  contactAttempts ContactAttempt[]
+}
+
+model ContactAttempt {
+  id          String    @id @default(cuid())
+  leadId      String
+  campaignId  String?
+  channel     String
+  status      String    @default("PENDING")
+  scriptId    String?
+  provider    String?
+  providerRef String?
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+  duration    Int?
+  cost        Float?
+  result      String?
+  notes       String?
+
+  lead   Lead    @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  script Script? @relation(fields: [scriptId], references: [id], onDelete: SetNull)
+
+  @@index([leadId])
+  @@index([channel])
+}
+
+model IntegrationConfig {
+  id        String   @id @default(cuid())
+  provider  String   @unique
+  type      String
+  config    String   @default("{}")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
