@@ -2,7 +2,7 @@ import type { Lead, Campaign } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { VapiService } from "./vapi.service";
 import { SmsService } from "./sms.service";
-import { EmailService } from "./email.service";
+import { InstantlyService } from "./email.service";
 
 export class ChannelRouterService {
   static async routeContact(
@@ -31,7 +31,7 @@ export class ChannelRouterService {
         channel,
         scriptId: script.id,
         status: "PENDING",
-        provider: channel === "CALL" ? "vapi" : channel === "SMS" ? "sms" : "email",
+        provider: channel === "CALL" ? "vapi" : channel === "SMS" ? "sms" : "instantly",
       },
     });
 
@@ -47,7 +47,7 @@ export class ChannelRouterService {
         result = await SmsService.sendSms(lead, script);
         break;
       case "EMAIL":
-        result = await EmailService.sendEmail(lead, script);
+        result = await InstantlyService.sendEmail(lead, script);
         break;
       default:
         result = { error: `Unknown channel: ${channel}` };
@@ -93,7 +93,7 @@ export class ChannelRouterService {
           result = await SmsService.sendSms(attempt.lead, attempt.script);
           break;
         case "EMAIL":
-          result = await EmailService.sendEmail(attempt.lead, attempt.script);
+          result = await InstantlyService.sendEmail(attempt.lead, attempt.script);
           break;
         default:
           result = { error: `Unknown channel` };

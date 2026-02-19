@@ -16,6 +16,8 @@ export default function EditCampaignPage() {
     channels: string[];
     startDate?: string | null;
     endDate?: string | null;
+    instantlySync?: boolean;
+    emailSequence?: Array<{ subject: string; body: string; delayValue: number; delayUnit: "hours" | "days" }>;
   } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -32,6 +34,8 @@ export default function EditCampaignPage() {
           channels: data.channels,
           startDate: data.startDate ? format(new Date(data.startDate), "yyyy-MM-dd") : "",
           endDate: data.endDate ? format(new Date(data.endDate), "yyyy-MM-dd") : "",
+          instantlySync: data.instantlySync ?? false,
+          emailSequence: data.emailSequence ?? [],
         });
       })
       .catch(() => router.push("/campaigns"));
@@ -75,6 +79,8 @@ export default function EditCampaignPage() {
           channels: campaign.channels as ("CALL" | "SMS" | "EMAIL")[],
           startDate: campaign.startDate ?? "",
           endDate: campaign.endDate ?? "",
+          instantlySync: campaign.instantlySync ?? false,
+          emailSequence: campaign.emailSequence ?? [],
         }}
         onSubmit={handleSubmit}
         isLoading={isLoading}

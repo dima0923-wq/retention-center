@@ -1,8 +1,9 @@
 "use client";
 
-import { Phone, Mail, Globe } from "lucide-react";
+import { Phone, Globe } from "lucide-react";
 import { IntegrationCard } from "@/components/integrations/IntegrationCard";
 import { SmsIntegrationCard } from "@/components/integrations/SmsIntegrationCard";
+import { InstantlyIntegrationCard } from "@/components/integrations/InstantlyIntegrationCard";
 import { WebhookUrlDisplay } from "@/components/integrations/WebhookUrlDisplay";
 import {
   Card,
@@ -60,37 +61,7 @@ export default function IntegrationsPage() {
 
         <SmsIntegrationCard />
 
-        <IntegrationCard
-          provider="email"
-          type="EMAIL"
-          title="Email Gateway"
-          description="Send emails via REST API gateway"
-          icon={<Mail className="h-5 w-5" />}
-          fields={[
-            {
-              key: "apiUrl",
-              label: "API URL",
-              placeholder: "https://api.email-provider.com/v1/send",
-            },
-            {
-              key: "apiKey",
-              label: "API Key",
-              type: "password",
-              placeholder: "Your API key",
-            },
-            {
-              key: "fromEmail",
-              label: "From Email",
-              placeholder: "noreply@yourdomain.com",
-            },
-            {
-              key: "fromName",
-              label: "From Name (optional)",
-              placeholder: "Your Company",
-            },
-          ]}
-          webhookUrl={`${baseUrl}/api/webhooks/email`}
-        />
+        <InstantlyIntegrationCard />
 
         <Card>
           <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-3">

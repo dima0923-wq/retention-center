@@ -157,6 +157,92 @@ export class LeadService {
     });
   }
 
+  static async syncLeadToInstantly(
+    leadId: string,
+    campaignId: string
+  ): Promise<{ ok: true } | { error: string }> {
+    const lead = await prisma.lead.findUnique({ where: { id: leadId } });
+    if (!lead) return { error: "Lead not found" };
+    if (!lead.email) return { error: "Lead has no email address" };
+
+    const campaign = await prisma.campaign.findUnique({ where: { id: campaignId } });
+    if (!campaign) return { error: "Campaign not found" };
+
+    const meta = campaign.meta ? JSON.parse(campaign.meta as string) : {};
+    if (!meta.instantlyCampaignId) return { error: "Campaign not synced to Instantly yet" };
+
+    const config = await prisma.integrationConfig.findUnique({ where: { provider: "instantly" } });
+    if (!config || !config.isActive) return { error: "Instantly integration not configured or inactive" };
+    const { apiKey } = JSON.parse(config.config) as { apiKey: string };
+
+    const res = await fetch("https://api.instantly.ai/api/v2/leads", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        campaign_id: meta.instantlyCampaignId,
+        leads: [{
+          email: lead.email,
+          first_name: lead.firstName,
+          last_name: lead.lastName,
+          phone: lead.phone ?? undefined,
+        }],
+      }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      return { error: `Instantly API error ${res.status}: ${text}` };
+    }
+
+    return { ok: true };
+  }
+
+  static async syncLeadsBulkToInstantly(
+    leadIds: string[],
+    campaignId: string
+  ): Promise<{ synced: number } | { error: string }> {
+    const campaign = await prisma.campaign.findUnique({ where: { id: campaignId } });
+    if (!campaign) return { error: "Campaign not found" };
+
+    const meta = campaign.meta ? JSON.parse(campaign.meta as string) : {};
+    if (!meta.instantlyCampaignId) return { error: "Campaign not synced to Instantly yet" };
+
+    const config = await prisma.integrationConfig.findUnique({ where: { provider: "instantly" } });
+    if (!config || !config.isActive) return { error: "Instantly integration not configured or inactive" };
+    const { apiKey } = JSON.parse(config.config) as { apiKey: string };
+
+    const leads = await prisma.lead.findMany({
+      where: { id: { in: leadIds } },
+    });
+
+    const leadsWithEmail = leads
+      .filter((l) => l.email)
+      .map((l) => ({
+        email: l.email!,
+        first_name: l.firstName,
+        last_name: l.lastName,
+        phone: l.phone ?? undefined,
+      }));
+
+    if (leadsWithEmail.length === 0) return { synced: 0 };
+
+    const res = await fetch("https://api.instantly.ai/api/v2/leads", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        campaign_id: meta.instantlyCampaignId,
+        leads: leadsWithEmail,
+      }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      return { error: `Instantly API error ${res.status}: ${text}` };
+    }
+
+    return { synced: leadsWithEmail.length };
+  }
+
   static async getStats(): Promise<LeadStats> {
     const [total, byStatus, bySource] = await Promise.all([
       prisma.lead.count(),

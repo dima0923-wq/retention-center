@@ -15,7 +15,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CallScriptEditor } from "@/components/scripts/CallScriptEditor";
 import { SmsTemplateEditor } from "@/components/scripts/SmsTemplateEditor";
-import { EmailTemplateEditor } from "@/components/scripts/EmailTemplateEditor";
+import { EmailTemplateEditor, type EmailStep } from "@/components/scripts/EmailTemplateEditor";
 import { ArrowLeft, Save } from "lucide-react";
 import { toast } from "sonner";
 
@@ -24,7 +24,9 @@ export default function NewScriptPage() {
   const [name, setName] = useState("");
   const [type, setType] = useState<"CALL" | "SMS" | "EMAIL" | "">("");
   const [content, setContent] = useState("");
-  const [subject, setSubject] = useState("");
+  const [emailSteps, setEmailSteps] = useState<EmailStep[]>([
+    { subject: "", body: "", delay_days: 0 },
+  ]);
   const [vapiConfig, setVapiConfig] = useState<Record<string, unknown>>({
     model: "gpt-4o",
     voice: "alloy",
@@ -39,13 +41,21 @@ export default function NewScriptPage() {
       toast.error("Name and type are required");
       return;
     }
+    if (type === "EMAIL" && emailSteps.length === 0) {
+      toast.error("At least one email step is required");
+      return;
+    }
+    if (type === "EMAIL" && emailSteps.some((s) => !s.subject && !s.body)) {
+      toast.error("Each email step needs a subject or body");
+      return;
+    }
     setSaving(true);
     try {
       const body: Record<string, unknown> = { name, type };
       if (type === "CALL") {
         body.vapiConfig = vapiConfig;
       } else if (type === "EMAIL") {
-        body.content = JSON.stringify({ subject, body: content });
+        body.content = JSON.stringify({ steps: emailSteps });
       } else {
         body.content = content;
       }
@@ -113,12 +123,7 @@ export default function NewScriptPage() {
         <SmsTemplateEditor content={content} onChange={setContent} />
       )}
       {type === "EMAIL" && (
-        <EmailTemplateEditor
-          subject={subject}
-          body={content}
-          onSubjectChange={setSubject}
-          onBodyChange={setContent}
-        />
+        <EmailTemplateEditor steps={emailSteps} onStepsChange={setEmailSteps} />
       )}
 
       {type && (

@@ -36,6 +36,14 @@ export const leadBulkCreateSchema = z.object({
   leads: z.array(leadCreateSchema).min(1).max(1000),
 });
 
+// Email sequence step schema
+export const emailSequenceStepSchema = z.object({
+  subject: z.string().min(1, "Subject is required"),
+  body: z.string().min(1, "Body is required"),
+  delayValue: z.number().int().min(0),
+  delayUnit: z.enum(["hours", "days"]),
+});
+
 // Campaign validators
 export const campaignCreateSchema = z.object({
   name: z.string().min(1, "Campaign name is required").max(200),
@@ -43,6 +51,8 @@ export const campaignCreateSchema = z.object({
   channels: z.array(z.enum(["CALL", "SMS", "EMAIL"])).min(1, "At least one channel is required"),
   startDate: z.string().optional(),
   endDate: z.string().optional(),
+  instantlySync: z.boolean().optional(),
+  emailSequence: z.array(emailSequenceStepSchema).optional(),
 });
 
 export const campaignUpdateSchema = z.object({

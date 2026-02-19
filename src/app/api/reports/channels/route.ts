@@ -1,17 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getChannelPerformance } from "@/services/report.service";
+import { getChannelPerformance, getEmailAnalytics } from "@/services/report.service";
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = request.nextUrl;
     const from = searchParams.get("from");
     const to = searchParams.get("to");
+    const channel = searchParams.get("channel");
 
-    const channels = await getChannelPerformance({
+    const range = {
       from: from ? new Date(from) : undefined,
       to: to ? new Date(to) : undefined,
-    });
+    };
 
+    // If channel=EMAIL, return detailed email analytics
+    if (channel === "EMAIL") {
+      const emailData = await getEmailAnalytics(range);
+      return NextResponse.json(emailData);
+    }
+
+    const channels = await getChannelPerformance(range);
     return NextResponse.json(channels);
   } catch (error) {
     console.error("Failed to fetch channel performance:", error);

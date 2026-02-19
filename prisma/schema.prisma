@@ -35,6 +35,7 @@ model Campaign {
   description String?
   status      String    @default("DRAFT")
   channels    String    @default("[]")
+  meta        String?
   startDate   DateTime?
   endDate     DateTime?
   createdAt   DateTime  @default(now())

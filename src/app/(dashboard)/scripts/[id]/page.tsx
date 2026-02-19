@@ -8,9 +8,30 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CallScriptEditor } from "@/components/scripts/CallScriptEditor";
 import { SmsTemplateEditor } from "@/components/scripts/SmsTemplateEditor";
-import { EmailTemplateEditor } from "@/components/scripts/EmailTemplateEditor";
-import { ArrowLeft, Save } from "lucide-react";
+import { EmailTemplateEditor, type EmailStep } from "@/components/scripts/EmailTemplateEditor";
+import { ScriptPreview } from "@/components/scripts/ScriptPreview";
+import { ArrowLeft, Save, Pencil, Eye } from "lucide-react";
 import { toast } from "sonner";
+
+function parseEmailContent(content: string): EmailStep[] {
+  try {
+    const parsed = JSON.parse(content || "{}");
+    // New multi-step format
+    if (Array.isArray(parsed.steps) && parsed.steps.length > 0) {
+      return parsed.steps;
+    }
+    // Legacy single-email format: { subject, body }
+    if (parsed.subject || parsed.body) {
+      return [{ subject: parsed.subject || "", body: parsed.body || "", delay_days: 0 }];
+    }
+  } catch {
+    // Plain text fallback
+    if (content) {
+      return [{ subject: "", body: content, delay_days: 0 }];
+    }
+  }
+  return [{ subject: "", body: "", delay_days: 0 }];
+}
 
 export default function EditScriptPage({
   params,
@@ -23,10 +44,11 @@ export default function EditScriptPage({
   const [script, setScript] = useState<any>(null);
   const [name, setName] = useState("");
   const [content, setContent] = useState("");
-  const [subject, setSubject] = useState("");
+  const [emailSteps, setEmailSteps] = useState<EmailStep[]>([]);
   const [vapiConfig, setVapiConfig] = useState<Record<string, unknown>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [editing, setEditing] = useState(false);
 
   useEffect(() => {
     async function fetchScript() {
@@ -38,16 +60,12 @@ export default function EditScriptPage({
         setName(data.name);
         if (data.type === "CALL") {
           setVapiConfig(data.vapiConfig || {});
+          setEditing(true);
         } else if (data.type === "EMAIL") {
-          try {
-            const parsed = JSON.parse(data.content || "{}");
-            setSubject(parsed.subject || "");
-            setContent(parsed.body || "");
-          } catch {
-            setContent(data.content || "");
-          }
+          setEmailSteps(parseEmailContent(data.content));
         } else {
           setContent(data.content || "");
+          setEditing(true);
         }
       } catch {
         toast.error("Script not found");
@@ -66,7 +84,7 @@ export default function EditScriptPage({
       if (script.type === "CALL") {
         body.vapiConfig = vapiConfig;
       } else if (script.type === "EMAIL") {
-        body.content = JSON.stringify({ subject, body: content });
+        body.content = JSON.stringify({ steps: emailSteps });
       } else {
         body.content = content;
       }
@@ -79,6 +97,9 @@ export default function EditScriptPage({
       if (!res.ok) throw new Error("Update failed");
       const updated = await res.json();
       setScript(updated);
+      if (script.type === "EMAIL") {
+        setEditing(false);
+      }
       toast.success("Script saved");
     } catch {
       toast.error("Failed to save script");
@@ -135,13 +156,31 @@ export default function EditScriptPage({
       {script.type === "SMS" && (
         <SmsTemplateEditor content={content} onChange={setContent} />
       )}
-      {script.type === "EMAIL" && (
-        <EmailTemplateEditor
-          subject={subject}
-          body={content}
-          onSubjectChange={setSubject}
-          onBodyChange={setContent}
-        />
+      {script.type === "EMAIL" && !editing && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold">Email Sequence</h3>
+            <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
+              <Pencil className="h-4 w-4 mr-1" />
+              Edit Sequence
+            </Button>
+          </div>
+          <ScriptPreview type="EMAIL" steps={emailSteps} />
+        </div>
+      )}
+      {script.type === "EMAIL" && editing && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold">Edit Email Sequence</h3>
+            {emailSteps.some((s) => s.subject || s.body) && (
+              <Button variant="outline" size="sm" onClick={() => setEditing(false)}>
+                <Eye className="h-4 w-4 mr-1" />
+                Preview Mode
+              </Button>
+            )}
+          </div>
+          <EmailTemplateEditor steps={emailSteps} onStepsChange={setEmailSteps} />
+        </div>
       )}
 
       <div className="flex justify-end">

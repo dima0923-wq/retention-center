@@ -99,3 +99,62 @@ export type CampaignStats = {
   byStatus: Record<string, number>;
   conversionRate: number;
 };
+
+// Instantly API types
+export type InstantlyConfig = {
+  apiKey: string;
+  defaultCampaignId?: string;
+};
+
+export type InstantlyCampaign = {
+  id: string;
+  name: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type InstantlyLead = {
+  email: string;
+  first_name?: string;
+  last_name?: string;
+  campaign_id?: string;
+  custom_variables?: Record<string, string>;
+};
+
+export type InstantlyAccount = {
+  id: string;
+  email: string;
+  status: string;
+  warmup_status?: string;
+};
+
+export type InstantlyWebhookEvent = {
+  event_type: string;
+  timestamp: string;
+  data: {
+    campaign_id?: string;
+    lead_email?: string;
+    email_id?: string;
+    account_email?: string;
+    [key: string]: unknown;
+  };
+};
+
+export type InstantlyAnalytics = {
+  campaign_id: string;
+  total_sent: number;
+  total_opened: number;
+  total_clicked: number;
+  total_replied: number;
+  total_bounced: number;
+  total_unsubscribed: number;
+};
+
+export type EmailStats = {
+  totalSent: number;
+  openRate: number;
+  clickRate: number;
+  replyRate: number;
+  bounceRate: number;
+};

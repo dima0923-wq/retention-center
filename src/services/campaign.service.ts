@@ -206,6 +206,103 @@ export class CampaignService {
     return this.update(id, { status: "PAUSED" });
   }
 
+  static async syncToInstantly(campaignId: string): Promise<{ instantlyCampaignId: string } | { error: string }> {
+    const campaign = await prisma.campaign.findUnique({ where: { id: campaignId } });
+    if (!campaign) return { error: "Campaign not found" };
+
+    const config = await prisma.integrationConfig.findUnique({ where: { provider: "instantly" } });
+    if (!config || !config.isActive) return { error: "Instantly integration not configured or inactive" };
+    const { apiKey } = JSON.parse(config.config) as { apiKey: string };
+
+    const res = await fetch("https://api.instantly.ai/api/v2/campaigns", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ name: campaign.name }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      return { error: `Instantly API error ${res.status}: ${text}` };
+    }
+
+    const data = (await res.json()) as { id: string };
+    await prisma.campaign.update({
+      where: { id: campaignId },
+      data: { meta: JSON.stringify({ instantlyCampaignId: data.id }) },
+    });
+
+    return { instantlyCampaignId: data.id };
+  }
+
+  static async pushLeadsToInstantly(campaignId: string): Promise<{ pushed: number } | { error: string }> {
+    const campaign = await prisma.campaign.findUnique({ where: { id: campaignId } });
+    if (!campaign) return { error: "Campaign not found" };
+
+    const meta = campaign.meta ? JSON.parse(campaign.meta as string) : {};
+    if (!meta.instantlyCampaignId) return { error: "Campaign not synced to Instantly yet" };
+
+    const config = await prisma.integrationConfig.findUnique({ where: { provider: "instantly" } });
+    if (!config || !config.isActive) return { error: "Instantly integration not configured or inactive" };
+    const { apiKey } = JSON.parse(config.config) as { apiKey: string };
+
+    const campaignLeads = await prisma.campaignLead.findMany({
+      where: { campaignId },
+      include: { lead: true },
+    });
+
+    const leads = campaignLeads
+      .filter((cl) => cl.lead.email)
+      .map((cl) => ({
+        email: cl.lead.email!,
+        first_name: cl.lead.firstName,
+        last_name: cl.lead.lastName,
+        phone: cl.lead.phone ?? undefined,
+      }));
+
+    if (leads.length === 0) return { pushed: 0 };
+
+    const res = await fetch("https://api.instantly.ai/api/v2/leads", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        campaign_id: meta.instantlyCampaignId,
+        leads,
+      }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      return { error: `Instantly API error ${res.status}: ${text}` };
+    }
+
+    return { pushed: leads.length };
+  }
+
+  static async pullInstantlyStats(campaignId: string): Promise<{ stats: Record<string, number> } | { error: string }> {
+    const campaign = await prisma.campaign.findUnique({ where: { id: campaignId } });
+    if (!campaign) return { error: "Campaign not found" };
+
+    const meta = campaign.meta ? JSON.parse(campaign.meta as string) : {};
+    if (!meta.instantlyCampaignId) return { error: "Campaign not synced to Instantly yet" };
+
+    const config = await prisma.integrationConfig.findUnique({ where: { provider: "instantly" } });
+    if (!config || !config.isActive) return { error: "Instantly integration not configured or inactive" };
+    const { apiKey } = JSON.parse(config.config) as { apiKey: string };
+
+    const res = await fetch(
+      `https://api.instantly.ai/api/v2/campaigns/${meta.instantlyCampaignId}/analytics`,
+      { headers: { Authorization: `Bearer ${apiKey}` } }
+    );
+
+    if (!res.ok) {
+      const text = await res.text();
+      return { error: `Instantly API error ${res.status}: ${text}` };
+    }
+
+    const stats = (await res.json()) as Record<string, number>;
+    return { stats };
+  }
+
   static async getStats(id: string): Promise<CampaignStats> {
     const [totalLeads, byStatusRaw] = await Promise.all([
       prisma.campaignLead.count({ where: { campaignId: id } }),

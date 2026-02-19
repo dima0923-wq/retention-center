@@ -12,6 +12,7 @@ import { ChannelPerformanceChart } from "@/components/reports/ChannelPerformance
 import { TimelineChart } from "@/components/reports/TimelineChart";
 import { CampaignComparisonTable } from "@/components/reports/CampaignComparisonTable";
 import { ExportButton } from "@/components/reports/ExportButton";
+import { EmailAnalytics } from "@/components/reports/EmailAnalytics";
 
 type DateRangePreset = "7d" | "30d" | "90d" | "custom";
 
@@ -170,6 +171,12 @@ export default function ReportsPage() {
 
           {/* Campaign comparison table */}
           <CampaignComparisonTable data={campaigns} />
+
+          {/* Email Analytics */}
+          <EmailAnalytics
+            from={getDateRange(preset).from.toISOString()}
+            to={getDateRange(preset).to.toISOString()}
+          />
         </>
       )}
     </div>

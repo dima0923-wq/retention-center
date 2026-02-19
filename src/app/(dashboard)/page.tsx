@@ -7,7 +7,19 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Users, Megaphone, TrendingUp, PhoneCall } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import {
+  Users,
+  Megaphone,
+  TrendingUp,
+  PhoneCall,
+  Mail,
+  MailOpen,
+  MessageSquareReply,
+  AlertTriangle,
+  CheckCircle2,
+  XCircle,
+} from "lucide-react";
 import {
   LineChart,
   Line,
@@ -16,6 +28,7 @@ import {
   XAxis,
 } from "recharts";
 import { format, parseISO } from "date-fns";
+import type { EmailStats } from "@/types";
 
 type OverviewStats = {
   totalLeads: number;
@@ -31,9 +44,20 @@ type TimelineData = {
   conversions: number;
 };
 
+type EmailActivity = {
+  id: string;
+  leadName: string;
+  channel: string;
+  status: string;
+  startedAt: string;
+};
+
 export default function DashboardPage() {
   const [stats, setStats] = useState<OverviewStats | null>(null);
   const [timeline, setTimeline] = useState<TimelineData[]>([]);
+  const [emailStats, setEmailStats] = useState<EmailStats | null>(null);
+  const [instantlyConnected, setInstantlyConnected] = useState<boolean | null>(null);
+  const [recentEmails, setRecentEmails] = useState<EmailActivity[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -50,6 +74,33 @@ export default function DashboardPage() {
 
         if (overviewRes.ok) setStats(await overviewRes.json());
         if (timelineRes.ok) setTimeline(await timelineRes.json());
+
+        // Fetch email stats from Instantly analytics
+        try {
+          const emailRes = await fetch("/api/instantly/analytics");
+          if (emailRes.ok) {
+            const data = await emailRes.json();
+            setEmailStats(data);
+            setInstantlyConnected(true);
+          } else {
+            setInstantlyConnected(false);
+          }
+        } catch {
+          setInstantlyConnected(false);
+        }
+
+        // Fetch recent email contact attempts
+        try {
+          const activityRes = await fetch(
+            `/api/contact-attempts?channel=EMAIL&limit=10`
+          );
+          if (activityRes.ok) {
+            const data = await activityRes.json();
+            setRecentEmails(Array.isArray(data) ? data : data.data ?? []);
+          }
+        } catch {
+          // silently ignore
+        }
       } catch (err) {
         console.error("Failed to fetch dashboard data:", err);
       } finally {
@@ -82,6 +133,29 @@ export default function DashboardPage() {
     },
   ];
 
+  const emailStatCards = [
+    {
+      title: "Total Emails Sent",
+      value: emailStats?.totalSent ?? 0,
+      icon: Mail,
+    },
+    {
+      title: "Open Rate",
+      value: `${emailStats?.openRate ?? 0}%`,
+      icon: MailOpen,
+    },
+    {
+      title: "Reply Rate",
+      value: `${emailStats?.replyRate ?? 0}%`,
+      icon: MessageSquareReply,
+    },
+    {
+      title: "Bounce Rate",
+      value: `${emailStats?.bounceRate ?? 0}%`,
+      icon: AlertTriangle,
+    },
+  ];
+
   return (
     <div className="space-y-6">
       {/* Stats cards */}
@@ -101,6 +175,43 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         ))}
+      </div>
+
+      {/* Email Stats Section */}
+      <div>
+        <div className="flex items-center gap-3 mb-4">
+          <h2 className="text-lg font-semibold">Email Campaign Stats</h2>
+          {instantlyConnected !== null && (
+            <Badge
+              variant={instantlyConnected ? "default" : "destructive"}
+              className="flex items-center gap-1"
+            >
+              {instantlyConnected ? (
+                <CheckCircle2 className="h-3 w-3" />
+              ) : (
+                <XCircle className="h-3 w-3" />
+              )}
+              Instantly {instantlyConnected ? "Connected" : "Disconnected"}
+            </Badge>
+          )}
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {emailStatCards.map((stat) => (
+            <Card key={stat.title}>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  {stat.title}
+                </CardTitle>
+                <stat.icon className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {loading ? "..." : stat.value}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       </div>
 
       {/* Charts */}
@@ -192,6 +303,54 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Recent Email Activity */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm font-medium">
+            Recent Email Activity
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {recentEmails.length > 0 ? (
+            <div className="space-y-3">
+              {recentEmails.map((activity) => (
+                <div
+                  key={activity.id}
+                  className="flex items-center justify-between text-sm"
+                >
+                  <div className="flex items-center gap-2">
+                    <Mail className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-medium">{activity.leadName}</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Badge
+                      variant={
+                        activity.status === "SUCCESS"
+                          ? "default"
+                          : activity.status === "FAILED"
+                            ? "destructive"
+                            : "secondary"
+                      }
+                    >
+                      {activity.status}
+                    </Badge>
+                    <span className="text-muted-foreground text-xs">
+                      {activity.startedAt
+                        ? format(parseISO(activity.startedAt), "MMM d, HH:mm")
+                        : ""}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-muted-foreground text-sm text-center py-4">
+              {loading ? "Loading..." : "No email activity yet"}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

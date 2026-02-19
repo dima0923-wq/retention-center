@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CampaignStatusBadge } from "@/components/campaigns/CampaignStatusBadge";
 import { ChannelIcons } from "@/components/campaigns/ChannelSelector";
 import { CampaignLeadTable } from "@/components/campaigns/CampaignLeadTable";
+import { InstantlyStats, InstantlyStatsData } from "@/components/campaigns/InstantlyStats";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { Pencil, Play, Pause, CheckCircle, Users, TrendingUp, BarChart3 } from "lucide-react";
@@ -21,6 +22,7 @@ type CampaignDetail = {
   startDate?: string | null;
   endDate?: string | null;
   createdAt: string;
+  instantlySync?: boolean;
   campaignLeads: Array<{
     id: string;
     status: string;
@@ -50,8 +52,11 @@ export default function CampaignDetailPage() {
   const id = params.id as string;
   const [campaign, setCampaign] = useState<CampaignDetail | null>(null);
   const [stats, setStats] = useState<CampaignStats | null>(null);
+  const [instantlyStats, setInstantlyStats] = useState<InstantlyStatsData | null>(null);
+  const [instantlyStatus, setInstantlyStatus] = useState<"active" | "paused" | "not_synced">("not_synced");
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [instantlyLoading, setInstantlyLoading] = useState(false);
 
   const fetchCampaign = useCallback(async () => {
     try {
@@ -63,14 +68,34 @@ export default function CampaignDetailPage() {
         router.push("/campaigns");
         return;
       }
-      setCampaign(await campRes.json());
+      const campData = await campRes.json();
+      setCampaign(campData);
       setStats(await statsRes.json());
+
+      if (campData.channels?.includes("EMAIL") && campData.instantlySync) {
+        fetchInstantlyStats();
+      }
     } catch (err) {
       console.error("Failed to fetch campaign:", err);
     } finally {
       setLoading(false);
     }
   }, [id, router]);
+
+  const fetchInstantlyStats = async () => {
+    try {
+      const res = await fetch(`/api/campaigns/${id}/stats?source=instantly`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.instantly) {
+          setInstantlyStats(data.instantly);
+          setInstantlyStatus(data.instantlyStatus ?? "not_synced");
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch Instantly stats:", err);
+    }
+  };
 
   useEffect(() => {
     fetchCampaign();
@@ -117,6 +142,80 @@ export default function CampaignDetailPage() {
     }
   };
 
+  const handlePushLeads = async () => {
+    setInstantlyLoading(true);
+    try {
+      const res = await fetch(`/api/campaigns/${id}/leads`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "sync_instantly" }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error ?? "Failed to push leads");
+      }
+      toast.success("Leads pushed to Instantly.ai");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to push leads");
+    } finally {
+      setInstantlyLoading(false);
+    }
+  };
+
+  const handlePullStats = async () => {
+    setInstantlyLoading(true);
+    try {
+      await fetchInstantlyStats();
+      toast.success("Instantly stats refreshed");
+    } catch {
+      toast.error("Failed to pull stats");
+    } finally {
+      setInstantlyLoading(false);
+    }
+  };
+
+  const handleInstantlyLaunch = async () => {
+    setInstantlyLoading(true);
+    try {
+      const res = await fetch(`/api/campaigns/${id}/instantly`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "launch" }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error ?? "Failed to launch");
+      }
+      toast.success("Campaign launched on Instantly.ai");
+      setInstantlyStatus("active");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to launch on Instantly");
+    } finally {
+      setInstantlyLoading(false);
+    }
+  };
+
+  const handleInstantlyPause = async () => {
+    setInstantlyLoading(true);
+    try {
+      const res = await fetch(`/api/campaigns/${id}/instantly`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "pause" }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error ?? "Failed to pause");
+      }
+      toast.success("Campaign paused on Instantly.ai");
+      setInstantlyStatus("paused");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to pause on Instantly");
+    } finally {
+      setInstantlyLoading(false);
+    }
+  };
+
   if (loading) {
     return <div className="text-center py-12 text-muted-foreground">Loading campaign...</div>;
   }
@@ -124,6 +223,8 @@ export default function CampaignDetailPage() {
   if (!campaign) {
     return <div className="text-center py-12 text-muted-foreground">Campaign not found</div>;
   }
+
+  const hasEmailChannel = campaign.channels?.includes("EMAIL");
 
   return (
     <div className="space-y-6">
@@ -221,6 +322,23 @@ export default function CampaignDetailPage() {
             </CardContent>
           </Card>
         </div>
+      )}
+
+      {hasEmailChannel && (
+        <Card>
+          <CardContent className="pt-6">
+            <InstantlyStats
+              stats={instantlyStats}
+              campaignId={id}
+              onPullStats={handlePullStats}
+              onPushLeads={handlePushLeads}
+              onLaunch={handleInstantlyLaunch}
+              onPauseCampaign={handleInstantlyPause}
+              isLoading={instantlyLoading}
+              instantlyStatus={instantlyStatus}
+            />
+          </CardContent>
+        </Card>
       )}
 
       <Card>
