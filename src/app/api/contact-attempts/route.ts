@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { verifyApiAuth, AuthError, authErrorResponse } from "@/lib/api-auth";
 
 export async function GET(request: NextRequest) {
   try {
+    await verifyApiAuth(request);
     const { searchParams } = request.nextUrl;
     const channel = searchParams.get("channel");
     const limitStr = searchParams.get("limit");
@@ -32,6 +34,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ data });
   } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
     console.error("Failed to fetch contact attempts:", error);
     return NextResponse.json(
       { error: "Failed to fetch contact attempts" },

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
+import { verifyApiAuth, AuthError, authErrorResponse } from "@/lib/api-auth";
 
 const upsertSchema = z.object({
   provider: z.string().min(1),
@@ -9,18 +10,40 @@ const upsertSchema = z.object({
   isActive: z.boolean().optional(),
 });
 
+const SENSITIVE_KEYS = ["apiKey", "api_key", "password", "secret", "token"];
+const SENSITIVE_PLACEHOLDER = "***";
+
 function redactSensitiveFields(config: Record<string, unknown>) {
-  const sensitiveKeys = ["apiKey", "api_key", "password", "secret", "token"];
   const result = { ...config };
-  for (const key of sensitiveKeys) {
+  for (const key of SENSITIVE_KEYS) {
     if (key in result && typeof result[key] === "string") {
-      result[key] = "***";
+      result[key] = SENSITIVE_PLACEHOLDER;
     }
   }
   return result;
 }
 
-export async function GET() {
+/** Merge incoming config with existing DB config, preserving sensitive fields that were redacted. */
+function mergeSensitiveFields(
+  incoming: Record<string, unknown>,
+  existing: Record<string, unknown>
+): Record<string, unknown> {
+  const merged = { ...incoming };
+  for (const key of SENSITIVE_KEYS) {
+    if (merged[key] === SENSITIVE_PLACEHOLDER && key in existing) {
+      merged[key] = existing[key];
+    }
+  }
+  return merged;
+}
+
+export async function GET(req: NextRequest) {
+  try {
+    await verifyApiAuth(req);
+  } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
   const configs = await prisma.integrationConfig.findMany({
     orderBy: { provider: "asc" },
   });
@@ -32,6 +55,12 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  try {
+    await verifyApiAuth(req);
+  } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
   const body = await req.json();
   const parsed = upsertSchema.safeParse(body);
   if (!parsed.success) {
@@ -53,10 +82,18 @@ export async function POST(req: NextRequest) {
     });
   }
 
+  // Preserve redacted sensitive fields (e.g. password="***") by merging with existing DB values
+  let finalConfig = config;
+  const existing = await prisma.integrationConfig.findUnique({ where: { provider } });
+  if (existing?.config) {
+    const existingParsed = JSON.parse(existing.config as string) as Record<string, unknown>;
+    finalConfig = mergeSensitiveFields(config, existingParsed);
+  }
+
   const integration = await prisma.integrationConfig.upsert({
     where: { provider },
-    create: { provider, type, config: JSON.stringify(config), isActive: isActive ?? true },
-    update: { type, config: JSON.stringify(config), isActive: isActive ?? true },
+    create: { provider, type, config: JSON.stringify(finalConfig), isActive: isActive ?? true },
+    update: { type, config: JSON.stringify(finalConfig), isActive: isActive ?? true },
   });
 
   return NextResponse.json(integration);

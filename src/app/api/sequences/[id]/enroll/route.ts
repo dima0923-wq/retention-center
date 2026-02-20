@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { RetentionSequenceService } from "@/services/retention-sequence.service";
 import { sequenceEnrollSchema } from "@/lib/validators";
+import { verifyApiAuth, AuthError, authErrorResponse } from "@/lib/api-auth";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
 export async function POST(req: NextRequest, context: RouteContext) {
   try {
+    await verifyApiAuth(req);
     const { id } = await context.params;
     const body = await req.json();
     const parsed = sequenceEnrollSchema.safeParse(body);
@@ -26,6 +28,7 @@ export async function POST(req: NextRequest, context: RouteContext) {
 
     return NextResponse.json({ results });
   } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
     const message = error instanceof Error ? error.message : "Internal server error";
     const status = message.includes("not found") || message.includes("not active") ? 400 : 500;
     console.error("POST /api/sequences/[id]/enroll error:", error);

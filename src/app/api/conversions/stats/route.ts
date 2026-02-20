@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { verifyApiAuth, AuthError, authErrorResponse } from "@/lib/api-auth";
 
 export async function GET(req: NextRequest) {
   try {
+    await verifyApiAuth(req);
     const url = req.nextUrl;
     const from = url.searchParams.get("from") || undefined;
     const to = url.searchParams.get("to") || undefined;
@@ -74,6 +76,7 @@ export async function GET(req: NextRequest) {
       })),
     });
   } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
     console.error("Conversion stats error:", error);
     return NextResponse.json({ error: "Failed to fetch stats" }, { status: 500 });
   }

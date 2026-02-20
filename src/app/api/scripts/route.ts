@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ScriptService } from "@/services/script.service";
 import { scriptCreateSchema, scriptFiltersSchema } from "@/lib/validators";
+import { verifyApiAuth, authErrorResponse, AuthError } from "@/lib/api-auth";
 
 export async function GET(req: NextRequest) {
   try {
+    const user = await verifyApiAuth(req);
     const params = Object.fromEntries(req.nextUrl.searchParams);
     const parsed = scriptFiltersSchema.safeParse(params);
     if (!parsed.success) {
@@ -12,6 +14,7 @@ export async function GET(req: NextRequest) {
     const scripts = await ScriptService.list(parsed.data);
     return NextResponse.json(scripts);
   } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
     console.error("GET /api/scripts error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
@@ -19,6 +22,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const user = await verifyApiAuth(req);
     const body = await req.json();
     const parsed = scriptCreateSchema.safeParse(body);
     if (!parsed.success) {
@@ -27,6 +31,7 @@ export async function POST(req: NextRequest) {
     const script = await ScriptService.create(parsed.data);
     return NextResponse.json(script, { status: 201 });
   } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
     console.error("POST /api/scripts error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }

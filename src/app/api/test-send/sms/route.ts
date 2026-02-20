@@ -1,7 +1,8 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
 import { createSmsProvider } from "@/services/channel/sms.service";
+import { verifyApiAuth, AuthError, authErrorResponse } from "@/lib/api-auth";
 
 const smsSchema = z.object({
   to: z.string().regex(/^\+[1-9]\d{1,14}$/, "Phone must be in E.164 format"),
@@ -9,8 +10,9 @@ const smsSchema = z.object({
   provider: z.string().optional(),
 });
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
+    await verifyApiAuth(req);
     const rawBody = await req.json();
     const parsed = smsSchema.safeParse(rawBody);
     if (!parsed.success) {
@@ -56,6 +58,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true, providerRef: result.providerRef });
   } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
     console.error("POST /api/test-send/sms error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }

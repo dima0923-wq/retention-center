@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { LearningService } from "@/services/learning.service";
+import { verifyApiAuth, authErrorResponse, AuthError } from "@/lib/api-auth";
 
 export async function GET(req: NextRequest) {
   try {
+    const user = await verifyApiAuth(req);
     const channel = req.nextUrl.searchParams.get("channel") || undefined;
     const data = await LearningService.getTimeAnalysis(channel);
 
@@ -16,6 +18,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(cells);
   } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
     console.error("Heatmap error:", error);
     return NextResponse.json(
       { error: "Failed to fetch heatmap data" },

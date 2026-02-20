@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { ABTestService } from "@/services/ab-test.service";
 import { z } from "zod";
+import { verifyApiAuth, authErrorResponse, AuthError } from "@/lib/api-auth";
 
 const abTestCreateSchema = z.object({
   campaignId: z.string().min(1, "Campaign ID is required"),
@@ -12,6 +13,7 @@ const abTestCreateSchema = z.object({
 
 export async function GET(req: NextRequest) {
   try {
+    const user = await verifyApiAuth(req);
     const url = req.nextUrl;
     const campaignId = url.searchParams.get("campaignId") || undefined;
     const status = url.searchParams.get("status") || undefined;
@@ -32,6 +34,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ data: enriched, total: enriched.length });
   } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
     console.error("AB tests list error:", error);
     return NextResponse.json(
       { error: "Failed to fetch A/B tests" },
@@ -42,6 +45,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const user = await verifyApiAuth(req);
     const body = await req.json();
     const parsed = abTestCreateSchema.safeParse(body);
     if (!parsed.success) {
@@ -60,6 +64,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(test, { status: 201 });
   } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
     console.error("AB test create error:", error);
     return NextResponse.json(
       { error: "Failed to create A/B test" },

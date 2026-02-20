@@ -1,6 +1,7 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
+import { verifyApiAuth, AuthError, authErrorResponse } from "@/lib/api-auth";
 
 const emailSchema = z.object({
   to: z.string().email("Valid email is required"),
@@ -13,8 +14,9 @@ const emailSchema = z.object({
 
 const INSTANTLY_BASE = "https://api.instantly.ai/api/v2";
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
+    await verifyApiAuth(req);
     const rawBody = await req.json();
     const parsed = emailSchema.safeParse(rawBody);
     if (!parsed.success) {
@@ -95,6 +97,7 @@ export async function POST(req: Request) {
       note: "Lead added to Instantly campaign. Email will be sent according to the campaign schedule.",
     });
   } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
     console.error("POST /api/test-send/email error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }

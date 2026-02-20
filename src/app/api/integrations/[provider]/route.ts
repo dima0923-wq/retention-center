@@ -1,21 +1,43 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
+import { verifyApiAuth, AuthError, authErrorResponse } from "@/lib/api-auth";
 
 type Params = { params: Promise<{ provider: string }> };
 
+const SENSITIVE_KEYS = ["apiKey", "api_key", "password", "secret", "token"];
+const SENSITIVE_PLACEHOLDER = "***";
+
 function redactSensitiveFields(config: Record<string, unknown>) {
-  const sensitiveKeys = ["apiKey", "api_key", "password", "secret", "token"];
   const result = { ...config };
-  for (const key of sensitiveKeys) {
+  for (const key of SENSITIVE_KEYS) {
     if (key in result && typeof result[key] === "string") {
-      result[key] = "***";
+      result[key] = SENSITIVE_PLACEHOLDER;
     }
   }
   return result;
 }
 
-export async function GET(_req: NextRequest, { params }: Params) {
+function mergeSensitiveFields(
+  incoming: Record<string, unknown>,
+  existing: Record<string, unknown>
+): Record<string, unknown> {
+  const merged = { ...incoming };
+  for (const key of SENSITIVE_KEYS) {
+    if (merged[key] === SENSITIVE_PLACEHOLDER && key in existing) {
+      merged[key] = existing[key];
+    }
+  }
+  return merged;
+}
+
+export async function GET(req: NextRequest, { params }: Params) {
+  try {
+    await verifyApiAuth(req);
+  } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
   const { provider } = await params;
   const config = await prisma.integrationConfig.findUnique({
     where: { provider },
@@ -36,6 +58,12 @@ const patchSchema = z.object({
 });
 
 export async function PATCH(req: NextRequest, { params }: Params) {
+  try {
+    await verifyApiAuth(req);
+  } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
   const { provider } = await params;
   const body = await req.json();
   const parsed = patchSchema.safeParse(body);
@@ -54,7 +82,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
 
   const updateData: Record<string, unknown> = {};
-  if (parsed.data.config !== undefined) updateData.config = JSON.stringify(parsed.data.config);
+  if (parsed.data.config !== undefined) {
+    const existingParsed = existing.config
+      ? (JSON.parse(existing.config as string) as Record<string, unknown>)
+      : {};
+    updateData.config = JSON.stringify(mergeSensitiveFields(parsed.data.config, existingParsed));
+  }
   if (parsed.data.isActive !== undefined) updateData.isActive = parsed.data.isActive;
 
   const updated = await prisma.integrationConfig.update({
@@ -65,7 +98,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   return NextResponse.json(updated);
 }
 
-export async function DELETE(_req: NextRequest, { params }: Params) {
+export async function DELETE(req: NextRequest, { params }: Params) {
+  try {
+    await verifyApiAuth(req);
+  } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
   const { provider } = await params;
   const existing = await prisma.integrationConfig.findUnique({
     where: { provider },

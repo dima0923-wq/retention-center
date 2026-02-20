@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { LeadService } from "@/services/lead.service";
 import { leadUpdateSchema } from "@/lib/validators";
+import { verifyApiAuth, authErrorResponse, AuthError } from "@/lib/api-auth";
 
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await verifyApiAuth(_request);
     const { id } = await params;
     const lead = await LeadService.getById(id);
 
@@ -16,6 +18,7 @@ export async function GET(
 
     return NextResponse.json(lead);
   } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
     console.error("GET /api/leads/[id] error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
@@ -26,6 +29,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await verifyApiAuth(request);
     const { id } = await params;
     const body = await request.json();
     const parsed = leadUpdateSchema.safeParse(body);
@@ -45,6 +49,7 @@ export async function PATCH(
 
     return NextResponse.json(lead);
   } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
     if (error instanceof Error && error.message.includes("DO_NOT_CONTACT")) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
@@ -58,10 +63,12 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await verifyApiAuth(_request);
     const { id } = await params;
     const lead = await LeadService.softDelete(id);
     return NextResponse.json(lead);
   } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
     if (
       error instanceof Error &&
       "code" in error &&

@@ -3,9 +3,11 @@ import { LeadService } from "@/services/lead.service";
 import { CampaignService } from "@/services/campaign.service";
 import { LeadRouterService } from "@/services/lead-router.service";
 import { leadCreateSchema, leadFiltersSchema } from "@/lib/validators";
+import { verifyApiAuth, authErrorResponse, AuthError } from "@/lib/api-auth";
 
 export async function GET(request: NextRequest) {
   try {
+    const user = await verifyApiAuth(request);
     const params = Object.fromEntries(request.nextUrl.searchParams);
     const parsed = leadFiltersSchema.safeParse(params);
 
@@ -26,6 +28,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(result);
   } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
     console.error("GET /api/leads error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
@@ -33,6 +36,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const user = await verifyApiAuth(request);
     const body = await request.json();
     const { campaignId, ...leadBody } = body;
     const parsed = leadCreateSchema.safeParse(leadBody);
@@ -69,6 +73,7 @@ export async function POST(request: NextRequest) {
       { status: result.deduplicated ? 200 : 201 }
     );
   } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
     console.error("POST /api/leads error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }

@@ -2,17 +2,20 @@ import { NextRequest, NextResponse } from "next/server";
 import { CampaignService } from "@/services/campaign.service";
 import { campaignLeadsSchema } from "@/lib/validators";
 import { prisma } from "@/lib/db";
+import { verifyApiAuth, authErrorResponse, AuthError } from "@/lib/api-auth";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
 export async function GET(req: NextRequest, context: RouteContext) {
   try {
+    const user = await verifyApiAuth(req);
     const { id } = await context.params;
     const page = Math.max(1, Math.floor(Number(req.nextUrl.searchParams.get("page")) || 1));
     const pageSize = Math.min(100, Math.max(1, Math.floor(Number(req.nextUrl.searchParams.get("pageSize")) || 20)));
     const result = await CampaignService.listLeads(id, page, pageSize);
     return NextResponse.json(result);
   } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
     console.error("GET /api/campaigns/[id]/leads error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
@@ -20,6 +23,7 @@ export async function GET(req: NextRequest, context: RouteContext) {
 
 export async function POST(req: NextRequest, context: RouteContext) {
   try {
+    const user = await verifyApiAuth(req);
     const { id } = await context.params;
     const body = await req.json();
 
@@ -41,6 +45,7 @@ export async function POST(req: NextRequest, context: RouteContext) {
     const result = await CampaignService.assignLeads(id, parsed.data.leadIds);
     return NextResponse.json(result);
   } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
     const message = error instanceof Error ? error.message : "Internal server error";
     if (message.includes("Campaign not found")) {
       return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
@@ -52,6 +57,7 @@ export async function POST(req: NextRequest, context: RouteContext) {
 
 export async function DELETE(req: NextRequest, context: RouteContext) {
   try {
+    const user = await verifyApiAuth(req);
     const { id } = await context.params;
     const body = await req.json();
     const parsed = campaignLeadsSchema.safeParse(body);
@@ -65,6 +71,7 @@ export async function DELETE(req: NextRequest, context: RouteContext) {
     const result = await CampaignService.removeLeads(id, parsed.data.leadIds);
     return NextResponse.json(result);
   } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
     console.error("DELETE /api/campaigns/[id]/leads error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }

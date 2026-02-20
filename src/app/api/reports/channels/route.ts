@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getChannelPerformance, getEmailAnalytics } from "@/services/report.service";
+import { verifyApiAuth, authErrorResponse, AuthError } from "@/lib/api-auth";
 
 export async function GET(request: NextRequest) {
   try {
+    const user = await verifyApiAuth(request);
     const { searchParams } = request.nextUrl;
     const from = searchParams.get("from");
     const to = searchParams.get("to");
@@ -25,6 +27,7 @@ export async function GET(request: NextRequest) {
     const channels = await getChannelPerformance(range);
     return NextResponse.json(channels);
   } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
     console.error("Failed to fetch channel performance:", error);
     return NextResponse.json(
       { error: "Failed to fetch channel performance" },

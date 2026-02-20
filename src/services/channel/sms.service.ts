@@ -185,19 +185,30 @@ export class TelecomProvider implements SmsProvider {
     });
 
     const res = await fetch(url, { method: "GET" });
+    const responseText = await res.text();
 
     if (!res.ok) {
-      const errText = await res.text();
-      return { providerRef: "", success: false, error: errText || `HTTP ${res.status}` };
+      return { providerRef: "", success: false, error: responseText || `HTTP ${res.status}` };
     }
 
-    const data = (await res.json()) as { message_id?: string };
+    // 23 Telecom may return plain-text errors (e.g. "SRC POI NOT FOUND") or JSON
+    let data: Record<string, unknown>;
+    try {
+      data = JSON.parse(responseText) as Record<string, unknown>;
+    } catch {
+      // Non-JSON response — treat as an error message from the API
+      return { providerRef: "", success: false, error: responseText.trim() || "Unknown API error" };
+    }
+
+    if (data.error) {
+      return { providerRef: "", success: false, error: String(data.error) };
+    }
 
     if (!data.message_id) {
-      return { providerRef: "", success: false, error: "No message_id returned" };
+      return { providerRef: "", success: false, error: `No message_id in response: ${responseText.slice(0, 200)}` };
     }
 
-    return { providerRef: data.message_id, success: true };
+    return { providerRef: String(data.message_id), success: true };
   }
 
   async getStatus(providerRef: string): Promise<{ status: string }> {
@@ -212,8 +223,13 @@ export class TelecomProvider implements SmsProvider {
       return { status: "unknown" };
     }
 
-    const data = (await res.json()) as { status?: string };
-    return { status: data.status ?? "unknown" };
+    let data: Record<string, unknown>;
+    try {
+      data = (await res.json()) as Record<string, unknown>;
+    } catch {
+      return { status: "unknown" };
+    }
+    return { status: (data.status as string) ?? "unknown" };
   }
 
   async testConnection(): Promise<{
@@ -226,22 +242,26 @@ export class TelecomProvider implements SmsProvider {
     }
 
     try {
-      // Make a real API call to verify credentials — query account balance/info
-      const url = this.buildUrl({ command: "balance" });
+      // 23 Telecom has no "balance" or "ping" command. To test credentials,
+      // we send a submit with a dummy dnis. If credentials are wrong we get
+      // 401 "not authorized". Any other response means credentials are valid.
+      const url = this.buildUrl({
+        ani: this.ani || "test",
+        dnis: "0",
+        message: "connection_test",
+        command: "submit",
+        serviceType: this.serviceType,
+      });
       const res = await fetch(url, { method: "GET" });
+      const responseText = await res.text();
 
-      if (!res.ok) {
-        return { success: false, error: `HTTP ${res.status}` };
+      // 401 = bad credentials
+      if (res.status === 401) {
+        return { success: false, error: responseText.trim() || "Authentication failed" };
       }
 
-      // 23telecom returns JSON; try to parse it to confirm the API is reachable
-      const data = (await res.json()) as { balance?: number; error?: string };
-
-      if (data.error) {
-        return { success: false, error: data.error };
-      }
-
-      return { success: true, balance: data.balance };
+      // Any other response (even 400 like "SRC POI NOT FOUND") means auth is OK
+      return { success: true };
     } catch (e) {
       return { success: false, error: (e as Error).message };
     }

@@ -15,9 +15,11 @@ import {
   Palette,
   Globe,
   GitBranch,
+  LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
+import { useUser } from "@/lib/user-context";
 
 const navItems = [
   { label: "Dashboard", href: "/", icon: LayoutDashboard },
@@ -34,6 +36,7 @@ const navItems = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { user, logout } = useUser();
 
   return (
     <aside className="fixed left-0 top-0 z-40 flex h-screen w-60 flex-col border-r border-border bg-sidebar">
@@ -94,6 +97,41 @@ export function Sidebar() {
           <span className="truncate">Traffic Center</span>
         </a>
       </div>
+
+      {/* User info */}
+      {user && (
+        <>
+          <Separator />
+          <div className="flex items-center gap-3 px-4 py-3">
+            {user.photoUrl ? (
+              <img
+                src={user.photoUrl}
+                alt={user.firstName}
+                className="h-8 w-8 shrink-0 rounded-full object-cover"
+              />
+            ) : (
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-sidebar-accent text-xs font-medium text-sidebar-accent-foreground">
+                {user.firstName.charAt(0).toUpperCase()}
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium text-sidebar-foreground">
+                {user.firstName}
+              </p>
+              <p className="truncate text-xs text-sidebar-foreground/60 capitalize">
+                {user.role}
+              </p>
+            </div>
+            <button
+              onClick={logout}
+              className="shrink-0 rounded-md p-1.5 text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground transition-colors"
+              title="Logout"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
+          </div>
+        </>
+      )}
     </aside>
   );
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
 import { sendSmsToLead } from "@/services/channel/sms.service";
+import { verifyApiAuth, authErrorResponse, AuthError } from "@/lib/api-auth";
 
 const sendSmsSchema = z.object({
   message: z.string().min(1, "Message is required"),
@@ -13,6 +14,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await verifyApiAuth(request);
     const { id } = await params;
 
     // Validate body first
@@ -64,6 +66,7 @@ export async function POST(
       providerRef: result.providerRef,
     });
   } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
     console.error("POST /api/leads/[id]/sms error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }

@@ -1,11 +1,14 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { LearningService } from "@/services/learning.service";
+import { verifyApiAuth, authErrorResponse, AuthError } from "@/lib/api-auth";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const user = await verifyApiAuth(request);
     const data = await LearningService.getRecommendations();
     return NextResponse.json(data);
   } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
     console.error("Recommendations error:", error);
     return NextResponse.json(
       { error: "Failed to fetch recommendations" },

@@ -1,6 +1,7 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
+import { verifyApiAuth, AuthError, authErrorResponse } from "@/lib/api-auth";
 
 const callSchema = z.object({
   to: z.string().regex(/^\+[1-9]\d{1,14}$/, "Phone must be in E.164 format"),
@@ -13,8 +14,9 @@ const callSchema = z.object({
   temperature: z.number().min(0).max(2).optional(),
 });
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
+    await verifyApiAuth(req);
     const rawBody = await req.json();
     const parsed = callSchema.safeParse(rawBody);
     if (!parsed.success) {
@@ -123,6 +125,7 @@ export async function POST(req: Request) {
     const data = (await res.json()) as { id: string; status: string };
     return NextResponse.json({ callId: data.id, status: data.status });
   } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
     console.error("POST /api/test-send/call error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }

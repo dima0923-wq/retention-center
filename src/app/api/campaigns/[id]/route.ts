@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { CampaignService } from "@/services/campaign.service";
 import { campaignUpdateSchema } from "@/lib/validators";
+import { verifyApiAuth, authErrorResponse, AuthError } from "@/lib/api-auth";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
 export async function GET(_req: NextRequest, context: RouteContext) {
   try {
+    const user = await verifyApiAuth(_req);
     const { id } = await context.params;
     const campaign = await CampaignService.getById(id);
     if (!campaign) {
@@ -13,6 +15,7 @@ export async function GET(_req: NextRequest, context: RouteContext) {
     }
     return NextResponse.json(campaign);
   } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
     console.error("GET /api/campaigns/[id] error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
@@ -20,6 +23,7 @@ export async function GET(_req: NextRequest, context: RouteContext) {
 
 export async function PATCH(req: NextRequest, context: RouteContext) {
   try {
+    const user = await verifyApiAuth(req);
     const { id } = await context.params;
     const body = await req.json();
     const parsed = campaignUpdateSchema.safeParse(body);
@@ -32,6 +36,7 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
     }
     return NextResponse.json(campaign);
   } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
     const message = error instanceof Error ? error.message : "Internal server error";
     console.error("PATCH /api/campaigns/[id] error:", error);
     if (message.includes("Campaign not found")) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
@@ -42,6 +47,7 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
 
 export async function DELETE(_req: NextRequest, context: RouteContext) {
   try {
+    const user = await verifyApiAuth(_req);
     const { id } = await context.params;
     const result = await CampaignService.delete(id);
     if (!result) {
@@ -49,6 +55,7 @@ export async function DELETE(_req: NextRequest, context: RouteContext) {
     }
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
     const message = error instanceof Error ? error.message : "Internal server error";
     const status = message.includes("Only draft") ? 400 : 500;
     console.error("DELETE /api/campaigns/[id] error:", error);

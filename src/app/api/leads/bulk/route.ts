@@ -3,9 +3,11 @@ import { LeadService } from "@/services/lead.service";
 import { CampaignService } from "@/services/campaign.service";
 import { LeadRouterService } from "@/services/lead-router.service";
 import { leadBulkCreateSchema } from "@/lib/validators";
+import { verifyApiAuth, authErrorResponse, AuthError } from "@/lib/api-auth";
 
 export async function POST(request: NextRequest) {
   try {
+    const user = await verifyApiAuth(request);
     const body = await request.json();
     const { campaignId, ...bulkBody } = body;
     const parsed = leadBulkCreateSchema.safeParse(bulkBody);
@@ -53,6 +55,7 @@ export async function POST(request: NextRequest) {
       { status }
     );
   } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
     console.error("POST /api/leads/bulk error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }

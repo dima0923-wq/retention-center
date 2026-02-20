@@ -1,7 +1,14 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { verifyApiAuth, AuthError, authErrorResponse } from "@/lib/api-auth";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  try {
+    await verifyApiAuth(req);
+  } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
   const config = await prisma.integrationConfig.findUnique({ where: { provider: "vapi" } });
   if (!config || !config.isActive) {
     return NextResponse.json({ error: "VAPI not configured" }, { status: 400 });

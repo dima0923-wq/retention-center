@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { CampaignService } from "@/services/campaign.service";
+import { verifyApiAuth, authErrorResponse, AuthError } from "@/lib/api-auth";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
 export async function POST(req: NextRequest, context: RouteContext) {
   try {
+    const user = await verifyApiAuth(req);
     const { id } = await context.params;
     const body = await req.json();
     const parsed = z.object({ action: z.enum(["launch", "pause"]) }).safeParse(body);
@@ -26,6 +28,8 @@ export async function POST(req: NextRequest, context: RouteContext) {
       return NextResponse.json({ success: true });
     }
   } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
+    if (error instanceof AuthError) return authErrorResponse(error);
     console.error("POST /api/campaigns/[id]/instantly error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }

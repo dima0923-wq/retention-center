@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { RetentionSequenceService } from "@/services/retention-sequence.service";
+import { verifyApiAuth, AuthError, authErrorResponse } from "@/lib/api-auth";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
-export async function POST(_req: NextRequest, context: RouteContext) {
+export async function POST(req: NextRequest, context: RouteContext) {
   try {
+    await verifyApiAuth(req);
     const { id } = await context.params;
     const sequence = await RetentionSequenceService.pause(id);
     if (!sequence) {
@@ -12,6 +14,7 @@ export async function POST(_req: NextRequest, context: RouteContext) {
     }
     return NextResponse.json(sequence);
   } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
     const message = error instanceof Error ? error.message : "Internal server error";
     const status = message.includes("Cannot pause") ? 400 : 500;
     console.error("POST /api/sequences/[id]/pause error:", error);

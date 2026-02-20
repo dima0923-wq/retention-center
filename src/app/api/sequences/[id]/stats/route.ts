@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { RetentionSequenceService } from "@/services/retention-sequence.service";
+import { verifyApiAuth, AuthError, authErrorResponse } from "@/lib/api-auth";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
-export async function GET(_req: NextRequest, context: RouteContext) {
+export async function GET(req: NextRequest, context: RouteContext) {
   try {
+    await verifyApiAuth(req);
     const { id } = await context.params;
     const stats = await RetentionSequenceService.getSequenceStats(id);
     if (!stats) {
@@ -12,6 +14,7 @@ export async function GET(_req: NextRequest, context: RouteContext) {
     }
     return NextResponse.json(stats);
   } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
     console.error("GET /api/sequences/[id]/stats error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }

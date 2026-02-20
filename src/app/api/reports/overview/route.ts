@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOverviewStats } from "@/services/report.service";
+import { verifyApiAuth, authErrorResponse, AuthError } from "@/lib/api-auth";
 
 export async function GET(request: NextRequest) {
   try {
+    const user = await verifyApiAuth(request);
     const { searchParams } = request.nextUrl;
     const from = searchParams.get("from");
     const to = searchParams.get("to");
@@ -17,6 +19,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(stats);
   } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
     console.error("Failed to fetch overview stats:", error);
     return NextResponse.json(
       { error: "Failed to fetch overview stats" },
