@@ -37,6 +37,14 @@ export function middleware(request: NextRequest) {
     return response;
   }
 
+  // API routes should return 401 JSON, not redirect
+  if (pathname.startsWith("/api/")) {
+    return NextResponse.json(
+      { error: "Authentication required" },
+      { status: 401 }
+    );
+  }
+
   // Redirect to Auth Center login with callback to our token route
   const callbackUrl = `${SELF_URL}/auth/token`;
   const loginUrl = `${AUTH_CENTER_URL}/login?redirect_url=${encodeURIComponent(callbackUrl)}`;
