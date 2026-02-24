@@ -5,7 +5,7 @@ import { verifyApiAuth, AuthError, authErrorResponse, requirePermission } from "
 export async function GET(req: NextRequest) {
   try {
     const user = await verifyApiAuth(req);
-    requirePermission(user, "retention:pwa:view");
+    requirePermission(user, "retention:analytics:view");
 
     const page = Number(req.nextUrl.searchParams.get("page") || "1");
     const limit = Number(req.nextUrl.searchParams.get("limit") || "12");

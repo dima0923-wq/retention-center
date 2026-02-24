@@ -5,7 +5,7 @@ import { verifyApiAuth, AuthError, authErrorResponse, requirePermission } from "
 export async function POST(req: NextRequest) {
   try {
     const user = await verifyApiAuth(req);
-    requirePermission(user, "retention:pwa:manage");
+    requirePermission(user, "retention:contacts:manage");
 
     const body = await req.json();
     const { userIds, internalName, title, text, image } = body;

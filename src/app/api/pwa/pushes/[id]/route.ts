@@ -8,7 +8,7 @@ export async function GET(
 ) {
   try {
     const user = await verifyApiAuth(req);
-    requirePermission(user, "retention:pwa:view");
+    requirePermission(user, "retention:analytics:view");
 
     const { id } = await params;
     const pushId = Number(id);
