@@ -3,6 +3,7 @@ import { SchedulerService } from "@/services/scheduler.service";
 import { SequenceProcessorService } from "@/services/sequence-processor.service";
 import { ChannelRouterService } from "@/services/channel/channel-router.service";
 import { LeadScoringService } from "@/services/lead-scoring.service";
+import { VapiSyncService } from "@/services/vapi-sync.service";
 
 const CRON_SECRET = process.env.CRON_SECRET || "retention-cron-secret-2026";
 
@@ -40,6 +41,13 @@ export async function GET(req: NextRequest) {
     results.leadScoring = await LeadScoringService.batchScoreLeads(100);
   } catch (e) {
     results.leadScoring = { error: (e as Error).message };
+  }
+
+  // 5. Sync VAPI calls from API
+  try {
+    results.vapiSync = await VapiSyncService.syncCalls();
+  } catch (e) {
+    results.vapiSync = { error: (e as Error).message };
   }
 
   return NextResponse.json({ ok: true, timestamp: new Date().toISOString(), ...results });
