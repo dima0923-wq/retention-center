@@ -520,11 +520,11 @@ function ConfigTab({
         />
       </div>
 
-      {/* Account Token (optional) */}
+      {/* Account Token */}
       <div className="space-y-1.5">
         <Label htmlFor="postmark-accountToken" className="text-xs">
           Account Token{" "}
-          <span className="text-muted-foreground">(optional — for Senders &amp; Domains)</span>
+          <span className="text-muted-foreground">(required for Senders &amp; Domains)</span>
         </Label>
         <Input
           id="postmark-accountToken"
@@ -533,6 +533,9 @@ function ConfigTab({
           value={config.accountToken ?? ""}
           onChange={(e) => updateField("accountToken", e.target.value)}
         />
+        <p className="text-xs text-muted-foreground">
+          Found in Postmark → Account → API Tokens. Different from the Server Token above.
+        </p>
       </div>
 
       {/* From Email */}
@@ -828,7 +831,8 @@ function SendersTab({
         <UserCheck className="mb-2 h-8 w-8" />
         <p className="text-sm font-medium">Account Token Required</p>
         <p className="text-xs mt-1 text-center max-w-sm">
-          Add your Postmark Account Token in the Config tab to manage sender signatures.
+          Add your Postmark <strong>Account Token</strong> in the Config tab to manage sender signatures.
+          This is different from the Server Token — find it at Postmark → Account → API Tokens.
         </p>
       </div>
     );
@@ -992,7 +996,8 @@ function DomainsTab({
         <Globe className="mb-2 h-8 w-8" />
         <p className="text-sm font-medium">Account Token Required</p>
         <p className="text-xs mt-1 text-center max-w-sm">
-          Add your Postmark Account Token in the Config tab to manage domain verification.
+          Add your Postmark <strong>Account Token</strong> in the Config tab to manage domain verification.
+          This is different from the Server Token — find it at Postmark → Account → API Tokens.
         </p>
       </div>
     );

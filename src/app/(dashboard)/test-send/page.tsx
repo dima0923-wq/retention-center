@@ -34,6 +34,14 @@ import { useVapiResources } from "@/hooks/use-vapi-resources";
 
 type Campaign = { id: string; name: string; status?: number };
 
+type EmailTemplateOption = {
+  id: string;
+  name: string;
+  subject: string;
+  fromEmail: string;
+  fromName: string;
+};
+
 // ─── Email Tab ────────────────────────────────────────────────────────────────
 
 function EmailTab({ campaigns }: { campaigns: Campaign[] }) {
@@ -41,8 +49,30 @@ function EmailTab({ campaigns }: { campaigns: Campaign[] }) {
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [campaignId, setCampaignId] = useState("__none__");
+  const [templateId, setTemplateId] = useState("__none__");
+  const [templates, setTemplates] = useState<EmailTemplateOption[]>([]);
+  const [templatesLoading, setTemplatesLoading] = useState(true);
   const [loading, setLoading] = useState(false);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    fetch("/api/email-templates?isActive=true")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data: EmailTemplateOption[]) => {
+        setTemplates(Array.isArray(data) ? data : []);
+      })
+      .catch(() => {})
+      .finally(() => setTemplatesLoading(false));
+  }, []);
+
+  function handleTemplateChange(id: string) {
+    setTemplateId(id);
+    if (id === "__none__") return;
+    const tpl = templates.find((t) => t.id === id);
+    if (tpl) {
+      setSubject(tpl.subject);
+    }
+  }
 
   function insertVariable(variable: string) {
     const el = bodyRef.current;
@@ -61,8 +91,13 @@ function EmailTab({ campaigns }: { campaigns: Campaign[] }) {
   }
 
   async function handleSend() {
-    if (!to || !subject || !body) {
-      toast.error("Please fill in To, Subject, and Body.");
+    const useTemplate = templateId !== "__none__";
+    if (!to) {
+      toast.error("Please enter a recipient email.");
+      return;
+    }
+    if (!useTemplate && (!subject || !body)) {
+      toast.error("Please fill in Subject and Body, or select a template.");
       return;
     }
     if (campaignId === "__none__") {
@@ -71,14 +106,27 @@ function EmailTab({ campaigns }: { campaigns: Campaign[] }) {
     }
     setLoading(true);
     try {
+      const payload: Record<string, string> = { to, campaignId };
+      if (useTemplate) {
+        payload.templateId = templateId;
+        if (subject) payload.subject = subject;
+        if (body) payload.body = body;
+      } else {
+        payload.subject = subject;
+        payload.body = body;
+      }
       const res = await fetch("/api/test-send/email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ to, subject, body, campaignId }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to send email");
-      toast.success("Lead added to campaign. Email will be sent per campaign schedule.");
+      toast.success(
+        useTemplate
+          ? "Lead added to campaign using template. Email will be sent per campaign schedule."
+          : "Lead added to campaign. Email will be sent per campaign schedule."
+      );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to send email");
     } finally {
@@ -107,29 +155,73 @@ function EmailTab({ campaigns }: { campaigns: Campaign[] }) {
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="email-subject">Subject</Label>
-          <Input
-            id="email-subject"
-            placeholder="Email subject"
-            value={subject}
-            onChange={(e) => setSubject(e.target.value)}
-          />
+          <Label>Email Template (optional)</Label>
+          <Select
+            value={templateId}
+            onValueChange={handleTemplateChange}
+            disabled={templatesLoading}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue
+                placeholder={templatesLoading ? "Loading..." : "Select template"}
+              />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">No template (manual)</SelectItem>
+              {templates.map((t) => (
+                <SelectItem key={t.id} value={t.id}>
+                  {t.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {templates.length === 0 && !templatesLoading && (
+            <p className="text-xs text-muted-foreground">
+              No active templates found. Create one in Email Templates first.
+            </p>
+          )}
         </div>
 
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="email-body">Body</Label>
-            <TemplateVariableInserter onInsert={insertVariable} />
+        {templateId === "__none__" ? (
+          <>
+            <div className="space-y-1.5">
+              <Label htmlFor="email-subject">Subject</Label>
+              <Input
+                id="email-subject"
+                placeholder="Email subject"
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="email-body">Body</Label>
+                <TemplateVariableInserter onInsert={insertVariable} />
+              </div>
+              <Textarea
+                id="email-body"
+                ref={bodyRef}
+                placeholder="Email body — supports {{firstName}}, {{lastName}}, etc."
+                rows={6}
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+              />
+            </div>
+          </>
+        ) : (
+          <div className="rounded-md border p-3 bg-muted/50">
+            <p className="text-sm font-medium">
+              Template: {templates.find((t) => t.id === templateId)?.name}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Subject: {subject || templates.find((t) => t.id === templateId)?.subject}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Template content will be rendered with test variables when sent.
+            </p>
           </div>
-          <Textarea
-            id="email-body"
-            ref={bodyRef}
-            placeholder="Email body — supports {{firstName}}, {{lastName}}, etc."
-            rows={6}
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-          />
-        </div>
+        )}
 
         <div className="space-y-1.5">
           <Label>Instantly Campaign</Label>
@@ -171,14 +263,6 @@ function EmailTab({ campaigns }: { campaigns: Campaign[] }) {
 }
 
 // ─── Postmark Email Tab ──────────────────────────────────────────────────────
-
-type EmailTemplateOption = {
-  id: string;
-  name: string;
-  subject: string;
-  fromEmail: string;
-  fromName: string;
-};
 
 function PostmarkEmailTab() {
   const [to, setTo] = useState("");

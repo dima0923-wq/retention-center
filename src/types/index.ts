@@ -93,6 +93,7 @@ export type CampaignCreateInput = {
   endDate?: string;
   instantlySync?: boolean;
   emailSequence?: EmailSequenceStep[];
+  emailTemplateId?: string;
   contactHoursStart?: string;
   contactHoursEnd?: string;
   contactDays?: number[];
@@ -111,6 +112,7 @@ export type CampaignUpdateInput = {
   status?: string;
   instantlySync?: boolean;
   emailSequence?: EmailSequenceStep[];
+  emailTemplateId?: string;
   contactHoursStart?: string;
   contactHoursEnd?: string;
   contactDays?: number[];

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -20,8 +20,16 @@ import {
 } from "@/components/ui/select";
 import { ChannelSelector } from "./ChannelSelector";
 import { campaignCreateSchema } from "@/lib/validators";
-import { Plus, Trash2, Mail, Clock, Zap, Phone, RefreshCw } from "lucide-react";
+import { Plus, Trash2, Mail, Clock, Zap, Phone, RefreshCw, FileText } from "lucide-react";
 import { useVapiResources, type VapiVoice } from "@/hooks/use-vapi-resources";
+
+type EmailTemplateOption = {
+  id: string;
+  name: string;
+  subject: string;
+  fromEmail: string;
+  fromName: string;
+};
 
 const VAPI_MODELS = [
   { value: "gpt-5", label: "GPT-5" },
@@ -102,7 +110,28 @@ export function CampaignForm({
   const emailSequence = watch("emailSequence") ?? [];
   const contactDays = watch("contactDays") ?? [];
   const hasCall = channels.includes("CALL");
+  const hasEmail = channels.includes("EMAIL");
   const autoAssign = watch("autoAssign");
+
+  // Email template selection for campaign-level Postmark sending
+  const [emailTemplates, setEmailTemplates] = useState<EmailTemplateOption[]>([]);
+  const [emailTemplatesLoading, setEmailTemplatesLoading] = useState(false);
+  const [emailTemplateId, setEmailTemplateId] = useState<string>(() => {
+    const dv = defaultValues as Record<string, unknown> | undefined;
+    return (dv?.emailTemplateId as string) ?? "__none__";
+  });
+
+  useEffect(() => {
+    if (!hasEmail) return;
+    setEmailTemplatesLoading(true);
+    fetch("/api/email-templates?isActive=true")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data: EmailTemplateOption[]) => {
+        setEmailTemplates(Array.isArray(data) ? data : []);
+      })
+      .catch(() => {})
+      .finally(() => setEmailTemplatesLoading(false));
+  }, [hasEmail]);
 
   const [activeStepField, setActiveStepField] = useState<{ stepIdx: number; field: "subject" | "body" } | null>(null);
   const stepIdsRef = useRef<string[]>([]);
@@ -196,8 +225,14 @@ export function CampaignForm({
     updateStep(stepIdx, field, current + variable);
   };
 
+  const handleEmailTemplateChange = (id: string) => {
+    setEmailTemplateId(id);
+    const value = id === "__none__" ? undefined : id;
+    setValue("emailTemplateId" as Parameters<typeof setValue>[0], value);
+  };
+
   const handleFormSubmit = async (data: FormData) => {
-    // vapiConfig is already in data via setValue("vapiConfig", ...) — nothing extra needed
+    // vapiConfig and emailTemplateId are already in data via setValue — nothing extra needed
     await onSubmit(data);
   };
 
@@ -352,6 +387,59 @@ export function CampaignForm({
           <Input id="endDate" type="date" {...register("endDate")} />
         </div>
       </div>
+
+      {hasEmail && (
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-2">
+              <FileText className="h-4 w-4" />
+              <CardTitle className="text-base">Email Template</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-xs text-muted-foreground">
+              Select an email template for Postmark sending. When set, campaign emails will use this template instead of the script content.
+            </p>
+            <Select
+              value={emailTemplateId}
+              onValueChange={handleEmailTemplateChange}
+              disabled={emailTemplatesLoading}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue
+                  placeholder={emailTemplatesLoading ? "Loading templates..." : "No template (use script)"}
+                />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">No template (use script)</SelectItem>
+                {emailTemplates.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>
+                    {t.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {emailTemplateId !== "__none__" && (
+              <div className="rounded-md border p-3 bg-muted/50">
+                <p className="text-sm font-medium">
+                  {emailTemplates.find((t) => t.id === emailTemplateId)?.name}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Subject: {emailTemplates.find((t) => t.id === emailTemplateId)?.subject}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  From: {emailTemplates.find((t) => t.id === emailTemplateId)?.fromName} &lt;{emailTemplates.find((t) => t.id === emailTemplateId)?.fromEmail}&gt;
+                </p>
+              </div>
+            )}
+            {emailTemplates.length === 0 && !emailTemplatesLoading && (
+              <p className="text-xs text-muted-foreground">
+                No active templates found. Create one in Email Templates first.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {channels.includes("EMAIL") && (
         <Card>

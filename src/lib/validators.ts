@@ -73,6 +73,7 @@ export const campaignCreateSchema = z.object({
   endDate: z.string().optional(),
   instantlySync: z.boolean().optional(),
   emailSequence: z.array(emailSequenceStepSchema).optional(),
+  emailTemplateId: z.string().optional(),
   // Schedule & rate limiting
   contactHoursStart: z.string().optional(),
   contactHoursEnd: z.string().optional(),
@@ -94,6 +95,7 @@ export const campaignUpdateSchema = z.object({
   status: z.enum(["DRAFT", "ACTIVE", "PAUSED", "COMPLETED"]).optional(),
   instantlySync: z.boolean().optional(),
   emailSequence: z.array(emailSequenceStepSchema).optional(),
+  emailTemplateId: z.string().optional(),
   // Schedule & rate limiting
   contactHoursStart: z.string().optional(),
   contactHoursEnd: z.string().optional(),

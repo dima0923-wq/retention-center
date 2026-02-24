@@ -8,6 +8,7 @@ const SAMPLE_VARIABLES: Record<string, string> = {
   email: "john.doe@example.com",
   companyName: "Acme Corp",
   unsubscribeUrl: "https://example.com/unsubscribe",
+  baseUrl: "https://ag2.q37fh758g.click",
 };
 
 function parseJsonFields<T extends { variables: string; metadata: string }>(
@@ -201,6 +202,7 @@ export class EmailTemplateService {
       lastName: lead.lastName,
       email: lead.email ?? "",
       phone: lead.phone ?? "",
+      baseUrl: "https://ag2.q37fh758g.click",
     };
   }
 }

@@ -22,6 +22,7 @@ type EmailTemplate = {
   id: string;
   name: string;
   subject: string;
+  htmlBody?: string;
   trigger: string;
   isActive: boolean;
   isDefault: boolean;
@@ -41,6 +42,16 @@ const triggerLabels: Record<string, string> = {
   conversion: "Conversion",
   custom: "Custom",
 };
+
+function previewHtml(html: string): string {
+  const origin = typeof window !== "undefined" ? window.location.origin : "https://ag2.q37fh758g.click";
+  let h = html.replace(/\{\{baseUrl\}\}/g, origin);
+  if (!h.includes("<base ")) {
+    const replaced = h.replace(/<head([^>]*)>/i, `<head$1><base href="${origin}/email-assets/">`);
+    h = replaced !== h ? replaced : `<base href="${origin}/email-assets/">${h}`;
+  }
+  return h;
+}
 
 export function EmailTemplateCard({ template, onDuplicate, onDelete }: Props) {
   return (
@@ -75,6 +86,22 @@ export function EmailTemplateCard({ template, onDuplicate, onDelete }: Props) {
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
+        {template.htmlBody && (
+          <Link href={`/email-templates/${template.id}`}>
+            <div className="border rounded-md overflow-hidden bg-white h-[120px] relative">
+              <iframe
+                srcDoc={previewHtml(template.htmlBody!)}
+                className="w-[600px] h-[400px] border-0 pointer-events-none"
+                sandbox="allow-same-origin"
+                title={`Preview of ${template.name}`}
+                style={{
+                  transform: "scale(0.3)",
+                  transformOrigin: "top left",
+                }}
+              />
+            </div>
+          </Link>
+        )}
         <p className="text-sm text-muted-foreground truncate">
           {template.subject || "No subject"}
         </p>

@@ -88,17 +88,24 @@ export default function NewSequencePage() {
         description: description.trim() || null,
         triggerType,
         channels: JSON.stringify(channels),
-        steps: steps.map((s) => ({
-          stepOrder: s.stepOrder,
-          channel: s.channel,
-          scriptId: s.scriptId || null,
-          delayValue: s.delayValue,
-          delayUnit: s.delayUnit,
-          isActive: s.isActive,
-          conditions: s.channel === "CALL" && s.vapiConfig
-            ? { vapiConfig: s.vapiConfig }
-            : undefined,
-        })),
+        steps: steps.map((s) => {
+          const conditions: Record<string, unknown> = {};
+          if (s.channel === "CALL" && s.vapiConfig) {
+            conditions.vapiConfig = s.vapiConfig;
+          }
+          if (s.channel === "EMAIL" && s.emailTemplateId) {
+            conditions.emailTemplateId = s.emailTemplateId;
+          }
+          return {
+            stepOrder: s.stepOrder,
+            channel: s.channel,
+            scriptId: s.scriptId || null,
+            delayValue: s.delayValue,
+            delayUnit: s.delayUnit,
+            isActive: s.isActive,
+            conditions: Object.keys(conditions).length > 0 ? conditions : undefined,
+          };
+        }),
       };
 
       const res = await fetch("/api/sequences", {
@@ -288,21 +295,28 @@ export default function NewSequencePage() {
             </CardHeader>
             <CardContent>
               <SequenceTimeline
-                steps={steps.map((s) => ({
-                  id: s.tempId,
-                  stepOrder: s.stepOrder,
-                  channel: s.channel,
-                  scriptId: s.scriptId || null,
-                  script: scripts.find((sc) => sc.id === s.scriptId)
-                    ? { name: scripts.find((sc) => sc.id === s.scriptId)!.name }
-                    : null,
-                  delayValue: s.delayValue,
-                  delayUnit: s.delayUnit,
-                  isActive: s.isActive,
-                  conditions: s.channel === "CALL" && s.vapiConfig
-                    ? { vapiConfig: s.vapiConfig }
-                    : undefined,
-                }))}
+                steps={steps.map((s) => {
+                  const conditions: Record<string, unknown> = {};
+                  if (s.channel === "CALL" && s.vapiConfig) {
+                    conditions.vapiConfig = s.vapiConfig;
+                  }
+                  if (s.channel === "EMAIL" && s.emailTemplateId) {
+                    conditions.emailTemplateId = s.emailTemplateId;
+                  }
+                  return {
+                    id: s.tempId,
+                    stepOrder: s.stepOrder,
+                    channel: s.channel,
+                    scriptId: s.scriptId || null,
+                    script: scripts.find((sc) => sc.id === s.scriptId)
+                      ? { name: scripts.find((sc) => sc.id === s.scriptId)!.name }
+                      : null,
+                    delayValue: s.delayValue,
+                    delayUnit: s.delayUnit,
+                    isActive: s.isActive,
+                    conditions: Object.keys(conditions).length > 0 ? conditions : undefined,
+                  };
+                })}
               />
             </CardContent>
           </Card>

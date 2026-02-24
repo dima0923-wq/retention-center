@@ -13,6 +13,7 @@ const PUBLIC_PATHS = [
   "/api/auth/",
   "/api/cron/",
   "/api/health",
+  "/api/vapi-calls/auto-sync",
 ];
 
 export function middleware(request: NextRequest) {

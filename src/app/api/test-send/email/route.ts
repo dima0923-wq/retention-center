@@ -2,15 +2,20 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
 import { verifyApiAuth, AuthError, authErrorResponse , requirePermission } from "@/lib/api-auth";
+import { EmailTemplateService } from "@/services/email-template.service";
 
 const emailSchema = z.object({
   to: z.string().email("Valid email is required"),
-  subject: z.string().min(1, "Subject is required"),
-  body: z.string().min(1, "Body is required"),
+  subject: z.string().min(1, "Subject is required").optional(),
+  body: z.string().min(1, "Body is required").optional(),
   campaignId: z.string().min(1, "Campaign is required"),
+  templateId: z.string().optional(),
   firstName: z.string().optional(),
   lastName: z.string().optional(),
-});
+}).refine(
+  (data) => data.templateId || (data.subject && data.body),
+  { message: "Either templateId or subject+body is required" }
+);
 
 const INSTANTLY_BASE = "https://api.instantly.ai/api/v2";
 
@@ -27,7 +32,28 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { to, subject, body, campaignId, firstName, lastName } = parsed.data;
+    const { to, campaignId, templateId, firstName, lastName } = parsed.data;
+    let subject = parsed.data.subject ?? "";
+    let body = parsed.data.body ?? "";
+
+    // If templateId is provided, load and render the template
+    if (templateId) {
+      const template = await EmailTemplateService.getById(templateId);
+      if (!template) {
+        return NextResponse.json({ error: "Email template not found" }, { status: 404 });
+      }
+
+      const testVars: Record<string, string> = {
+        firstName: firstName || "Test",
+        lastName: lastName || "User",
+        email: to,
+        phone: "+1 555-0123",
+      };
+      const rendered = EmailTemplateService.renderTemplate(template, testVars);
+      // Template values are used as defaults; explicit subject/body override
+      if (!subject) subject = rendered.subject;
+      if (!body) body = rendered.htmlBody;
+    }
 
     // Verify the Instantly campaign exists before adding the lead
     const instantlyConfigForCheck = await prisma.integrationConfig.findUnique({
@@ -95,7 +121,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       leadId: data.id,
-      note: "Lead added to Instantly campaign. Email will be sent according to the campaign schedule.",
+      templateId: templateId ?? null,
+      note: templateId
+        ? "Lead added to Instantly campaign using template. Email will be sent according to the campaign schedule."
+        : "Lead added to Instantly campaign. Email will be sent according to the campaign schedule.",
     });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
