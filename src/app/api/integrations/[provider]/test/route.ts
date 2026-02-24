@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { VapiService } from "@/services/channel/vapi.service";
 import { SmsService } from "@/services/channel/sms.service";
 import { EmailService } from "@/services/channel/email.service";
+import { PostmarkService } from "@/services/channel/postmark.service";
 import { verifyApiAuth, AuthError, authErrorResponse } from "@/lib/api-auth";
 
 type Params = { params: Promise<{ provider: string }> };
@@ -30,6 +31,9 @@ export async function POST(req: NextRequest, { params }: Params) {
     case "instantly":
       // Both email and instantly use the EmailService (backed by Instantly)
       result = await EmailService.testConnection();
+      break;
+    case "postmark":
+      result = await PostmarkService.testConnection();
       break;
     default:
       return NextResponse.json(

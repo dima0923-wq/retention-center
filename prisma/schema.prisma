@@ -48,6 +48,7 @@ model Campaign {
   contactAttempts ContactAttempt[]
   abTests         ABTest[]
   conversions     Conversion[]
+  zapierConfigs   ZapierWebhookConfig[]
 
   @@index([status])
 }
@@ -199,6 +200,7 @@ model RetentionSequence {
 
   steps       SequenceStep[]
   enrollments SequenceEnrollment[]
+  zapierConfigs ZapierWebhookConfig[]
 
   @@index([status])
   @@index([triggerType])
@@ -264,4 +266,48 @@ model SequenceStepExecution {
   @@index([stepId])
   @@index([status])
   @@index([scheduledAt])
+}
+
+// ─── Email Template Models ──────────────────────────────────────────────────
+
+model EmailTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  subject     String
+  htmlBody    String
+  textBody    String?
+  fromEmail   String   @default("noreply@example.com")
+  fromName    String   @default("Retention Center")
+  trigger     String   @default("manual")
+  isActive    Boolean  @default(true)
+  isDefault   Boolean  @default(false)
+  variables   String   @default("[]")
+  metadata    String   @default("{}")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([trigger])
+  @@index([isActive])
+}
+
+// ─── Zapier Webhook Config Models ───────────────────────────────────────────
+
+model ZapierWebhookConfig {
+  id                    String   @id @default(cuid())
+  campaignId            String
+  metaCampaignId        String
+  metaAdsetId           String?
+  metaFormId            String?
+  isActive              Boolean  @default(true)
+  channelConfig         String   @default("{}") // JSON: { sms: { enabled, scriptId }, email: { enabled, scriptId }, call: { enabled, scriptId } }
+  autoEnrollSequenceId  String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  campaign  Campaign           @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  sequence  RetentionSequence? @relation(fields: [autoEnrollSequenceId], references: [id], onDelete: SetNull)
+
+  @@index([metaCampaignId])
+  @@index([campaignId])
+  @@index([metaFormId])
 }

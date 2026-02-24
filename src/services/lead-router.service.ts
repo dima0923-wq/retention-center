@@ -2,6 +2,8 @@ import { prisma } from "@/lib/db";
 import type { Lead, Campaign } from "@/generated/prisma/client";
 import { ChannelRouterService } from "./channel/channel-router.service";
 import { RetentionSequenceService } from "./retention-sequence.service";
+import { PostmarkService } from "./channel/postmark.service";
+import { EmailTemplateService } from "./email-template.service";
 
 const CHANNEL_PRIORITY: Record<string, number> = {
   EMAIL: 0,
@@ -59,6 +61,43 @@ export class LeadRouterService {
     RetentionSequenceService.autoEnrollByTrigger(leadId, "new_lead", lead.source).catch((err) => {
       console.error(`Sequence auto-enrollment failed for lead ${leadId}:`, err);
     });
+
+    // Auto-send Postmark email for "new_lead" trigger templates
+    if (lead.email) {
+      EmailTemplateService.getByTrigger("new_lead").then(async (templates) => {
+        if (templates.length === 0) return;
+        const template = templates[0]; // Use first active template
+        const rendered = EmailTemplateService.renderTemplate(template, {
+          firstName: lead.firstName,
+          lastName: lead.lastName,
+          phone: lead.phone ?? "",
+          email: lead.email ?? "",
+        });
+        const result = await PostmarkService.sendEmail(lead, {
+          subject: rendered.subject,
+          htmlBody: rendered.htmlBody,
+          textBody: rendered.textBody,
+          fromEmail: template.fromEmail,
+          fromName: template.fromName,
+        }, { tag: "new_lead_auto" });
+        if (!("error" in result)) {
+          await prisma.contactAttempt.create({
+            data: {
+              leadId: lead.id,
+              channel: "EMAIL",
+              provider: "postmark",
+              status: "SUCCESS",
+              providerRef: result.providerRef,
+              scriptId: null,
+              notes: `Auto-email template: ${template.name}`,
+              completedAt: new Date(),
+            },
+          });
+        }
+      }).catch((err) => {
+        console.error(`Auto-email failed for lead ${leadId}:`, err);
+      });
+    }
 
     return { assigned };
   }

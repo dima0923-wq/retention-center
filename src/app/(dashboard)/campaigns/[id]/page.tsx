@@ -9,6 +9,7 @@ import { CampaignStatusBadge } from "@/components/campaigns/CampaignStatusBadge"
 import { ChannelIcons } from "@/components/campaigns/ChannelSelector";
 import { CampaignLeadTable } from "@/components/campaigns/CampaignLeadTable";
 import { InstantlyStats, InstantlyStatsData } from "@/components/campaigns/InstantlyStats";
+import { ZapierConfigCard } from "@/components/campaigns/ZapierConfigCard";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { Pencil, Play, Pause, CheckCircle, Users, TrendingUp, BarChart3, Zap, Phone } from "lucide-react";
@@ -436,6 +437,8 @@ export default function CampaignDetailPage() {
           </CardContent>
         </Card>
       )}
+
+      <ZapierConfigCard campaignId={id} />
 
       <Card>
         <CardHeader>

@@ -144,6 +144,42 @@ export const scriptFiltersSchema = z.object({
   search: z.string().optional(),
 });
 
+// ─── Email Template Validators ─────────────────────────────────────────────
+
+export const emailTemplateCreateSchema = z.object({
+  name: z.string().min(1, "Template name is required").max(200),
+  subject: z.string().min(1, "Subject is required").max(500),
+  htmlBody: z.string().min(1, "HTML body is required"),
+  textBody: z.string().optional(),
+  fromEmail: z.string().email().optional(),
+  fromName: z.string().max(200).optional(),
+  trigger: z.string().optional(),
+  isActive: z.boolean().optional(),
+  isDefault: z.boolean().optional(),
+  variables: z.array(z.string()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+});
+
+export const emailTemplateUpdateSchema = z.object({
+  name: z.string().min(1).max(200).optional(),
+  subject: z.string().min(1).max(500).optional(),
+  htmlBody: z.string().min(1).optional(),
+  textBody: z.string().nullable().optional(),
+  fromEmail: z.string().email().optional(),
+  fromName: z.string().max(200).optional(),
+  trigger: z.string().optional(),
+  isActive: z.boolean().optional(),
+  isDefault: z.boolean().optional(),
+  variables: z.array(z.string()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+});
+
+export const emailTemplateFiltersSchema = z.object({
+  trigger: z.string().optional(),
+  isActive: z.enum(["true", "false"]).transform(v => v === "true").optional(),
+  search: z.string().optional(),
+});
+
 // ─── Retention Sequence Validators ──────────────────────────────────────────
 
 export const sequenceStepSchema = z.object({

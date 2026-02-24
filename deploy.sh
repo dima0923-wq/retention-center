@@ -2,7 +2,7 @@
 set -e
 echo "Deploying Retention Center to 38.180.64.126..."
 
-sshpass -p 'LhH5rfrngQ' rsync -avz \
+rsync -avz \
   -e 'ssh -o StrictHostKeyChecking=no' \
   --exclude='node_modules' \
   --exclude='.next' \
@@ -13,7 +13,7 @@ sshpass -p 'LhH5rfrngQ' rsync -avz \
   --exclude='tsconfig.tsbuildinfo' \
   /Users/sky/retention-center/ root@38.180.64.126:/opt/retention-center/
 
-sshpass -p 'LhH5rfrngQ' ssh -o StrictHostKeyChecking=no root@38.180.64.126 '
+ssh -o StrictHostKeyChecking=no root@38.180.64.126 '
   cd /opt/retention-center &&
   npm install &&
   npx prisma generate &&
@@ -23,5 +23,5 @@ sshpass -p 'LhH5rfrngQ' ssh -o StrictHostKeyChecking=no root@38.180.64.126 '
 '
 
 echo "Deploy complete! Checking service status..."
-sshpass -p 'LhH5rfrngQ' ssh -o StrictHostKeyChecking=no root@38.180.64.126 \
+ssh -o StrictHostKeyChecking=no root@38.180.64.126 \
   'systemctl is-active retention-center && echo "Service is running!"'

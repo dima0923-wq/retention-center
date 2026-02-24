@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { VapiService } from "./vapi.service";
 import { SmsService } from "./sms.service";
 import { InstantlyService } from "./email.service";
+import { PostmarkService } from "./postmark.service";
 import { ABTestService } from "@/services/ab-test.service";
 import { SchedulerService } from "../scheduler.service";
 
@@ -86,7 +87,7 @@ export class ChannelRouterService {
         channel,
         scriptId,
         status: "PENDING",
-        provider: channel === "CALL" ? "vapi" : channel === "SMS" ? "sms" : "instantly",
+        provider: channel === "CALL" ? "vapi" : channel === "SMS" ? "sms" : "email",
         notes: abTestNote,
       },
     });
@@ -113,9 +114,28 @@ export class ChannelRouterService {
       case "SMS":
         result = await SmsService.sendSms(lead, selectedScript);
         break;
-      case "EMAIL":
-        result = await InstantlyService.sendEmail(lead, selectedScript, { campaignId: campaign.id });
+      case "EMAIL": {
+        // Check if Postmark is active — use it as primary email provider
+        const postmarkConfig = await prisma.integrationConfig.findUnique({
+          where: { provider: "postmark" },
+        });
+        if (postmarkConfig?.isActive) {
+          result = await PostmarkService.sendEmail(lead, {
+            subject: selectedScript.name,
+            htmlBody: selectedScript.content || "",
+          }, { tag: campaign.id });
+          // Update provider on the attempt record
+          if (!("error" in result)) {
+            await prisma.contactAttempt.update({
+              where: { id: attempt.id },
+              data: { provider: "postmark" },
+            });
+          }
+        } else {
+          result = await InstantlyService.sendEmail(lead, selectedScript, { campaignId: campaign.id });
+        }
         break;
+      }
       default:
         result = { error: `Unknown channel: ${channel}` };
     }
@@ -255,9 +275,26 @@ export class ChannelRouterService {
         case "SMS":
           result = await SmsService.sendSms(attempt.lead, attempt.script);
           break;
-        case "EMAIL":
-          result = await InstantlyService.sendEmail(attempt.lead, attempt.script);
+        case "EMAIL": {
+          const pmConfig = await prisma.integrationConfig.findUnique({
+            where: { provider: "postmark" },
+          });
+          if (pmConfig?.isActive) {
+            result = await PostmarkService.sendEmail(attempt.lead, {
+              subject: attempt.script.name,
+              htmlBody: attempt.script.content || "",
+            });
+            if (!("error" in result)) {
+              await prisma.contactAttempt.update({
+                where: { id: attempt.id },
+                data: { provider: "postmark" },
+              });
+            }
+          } else {
+            result = await InstantlyService.sendEmail(attempt.lead, attempt.script);
+          }
           break;
+        }
         default:
           result = { error: `Unknown channel` };
       }

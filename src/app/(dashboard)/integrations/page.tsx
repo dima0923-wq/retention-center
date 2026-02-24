@@ -1,11 +1,13 @@
 "use client";
 
-import { Globe } from "lucide-react";
+import { Globe, Zap } from "lucide-react";
 import { SmsIntegrationCard } from "@/components/integrations/SmsIntegrationCard";
 import { InstantlyIntegrationCard } from "@/components/integrations/InstantlyIntegrationCard";
+import { PostmarkIntegrationCard } from "@/components/integrations/PostmarkIntegrationCard";
 import { KeitaroIntegrationCard } from "@/components/integrations/KeitaroIntegrationCard";
 import { VapiIntegrationCard } from "@/components/integrations/VapiIntegrationCard";
 import { WebhookUrlDisplay } from "@/components/integrations/WebhookUrlDisplay";
+import { ZapierIntegrationCard } from "@/components/integrations/ZapierIntegrationCard";
 import {
   Card,
   CardContent,
@@ -39,7 +41,11 @@ export default function IntegrationsPage() {
 
         <InstantlyIntegrationCard />
 
+        <PostmarkIntegrationCard />
+
         <KeitaroIntegrationCard />
+
+        <ZapierIntegrationCard />
 
         <Card>
           <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-3">
