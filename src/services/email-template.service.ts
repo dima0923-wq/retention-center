@@ -186,4 +186,21 @@ export class EmailTemplateService {
   static getSampleVariables() {
     return SAMPLE_VARIABLES;
   }
+
+  /**
+   * Build lead variables map from a lead record.
+   */
+  static buildLeadVariables(lead: {
+    firstName: string;
+    lastName: string;
+    email?: string | null;
+    phone?: string | null;
+  }): Record<string, string> {
+    return {
+      firstName: lead.firstName,
+      lastName: lead.lastName,
+      email: lead.email ?? "",
+      phone: lead.phone ?? "",
+    };
+  }
 }

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { verifyApiAuth, AuthError, authErrorResponse , requirePermission } from "@/lib/api-auth";
 
-const SENSITIVE_KEYS = ["serverToken"];
+const SENSITIVE_KEYS = ["serverToken", "accountToken"];
 const SENSITIVE_PLACEHOLDER = "***";
 
 function redactSensitiveFields(config: Record<string, unknown>) {

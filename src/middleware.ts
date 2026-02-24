@@ -34,7 +34,7 @@ export function middleware(request: NextRequest) {
     try {
       const payload = JSON.parse(atob(tokenValue.split('.')[1]));
       if (payload.project && payload.project !== 'retention_center') {
-        // Wrong project — redirect to Auth Center login with correct project
+        // Wrong project — clear stale cookie and redirect to Auth Center for fresh token
         if (pathname.startsWith("/api/")) {
           return NextResponse.json(
             { error: "Access denied: not authorized for this project" },
@@ -43,7 +43,9 @@ export function middleware(request: NextRequest) {
         }
         const callbackUrl = `${SELF_URL}/auth/token`;
         const loginUrl = `${AUTH_CENTER_URL}/login?redirect_url=${encodeURIComponent(callbackUrl)}`;
-        return NextResponse.redirect(loginUrl);
+        const response = NextResponse.redirect(loginUrl);
+        response.cookies.delete("ac_access");
+        return response;
       }
     } catch {
       // If JWT decode fails, let it pass — Auth Center will verify properly

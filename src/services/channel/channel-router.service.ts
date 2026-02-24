@@ -6,6 +6,7 @@ import { InstantlyService } from "./email.service";
 import { PostmarkService } from "./postmark.service";
 import { ABTestService } from "@/services/ab-test.service";
 import { SchedulerService } from "../scheduler.service";
+import { EmailTemplateService } from "@/services/email-template.service";
 
 // Channel priority: EMAIL first, then SMS, then CALL
 const CHANNEL_PRIORITY: Record<string, number> = {
@@ -120,10 +121,35 @@ export class ChannelRouterService {
           where: { provider: "postmark" },
         });
         if (postmarkConfig?.isActive) {
-          result = await PostmarkService.sendEmail(lead, {
+          // Check for email template in campaign meta
+          let emailTemplate: { subject: string; htmlBody: string; textBody?: string | null; fromEmail?: string; fromName?: string } | null = null;
+          if (meta.emailTemplateId) {
+            const tpl = await EmailTemplateService.getById(meta.emailTemplateId as string);
+            if (tpl && tpl.isActive) {
+              const leadVars: Record<string, string> = {
+                firstName: lead.firstName,
+                lastName: lead.lastName,
+                email: lead.email ?? "",
+                phone: lead.phone ?? "",
+              };
+              const rendered = EmailTemplateService.renderTemplate(tpl, leadVars);
+              emailTemplate = {
+                subject: rendered.subject,
+                htmlBody: rendered.htmlBody,
+                textBody: rendered.textBody,
+                fromEmail: tpl.fromEmail,
+                fromName: tpl.fromName,
+              };
+            }
+          }
+
+          result = await PostmarkService.sendEmail(lead, emailTemplate ?? {
             subject: selectedScript.name,
             htmlBody: selectedScript.content || "",
-          }, { tag: campaign.id });
+          }, {
+            tag: campaign.id,
+            ...(meta.emailTemplateId ? { metadata: { templateId: meta.emailTemplateId as string } } : {}),
+          });
           // Update provider on the attempt record
           if (!("error" in result)) {
             await prisma.contactAttempt.update({
@@ -280,7 +306,30 @@ export class ChannelRouterService {
             where: { provider: "postmark" },
           });
           if (pmConfig?.isActive) {
-            result = await PostmarkService.sendEmail(attempt.lead, {
+            // Check for email template in campaign meta
+            const qMeta = campaignMeta ? JSON.parse(campaignMeta as string) : {};
+            let qEmailTemplate: { subject: string; htmlBody: string; textBody?: string | null; fromEmail?: string; fromName?: string } | null = null;
+            if (qMeta.emailTemplateId) {
+              const tpl = await EmailTemplateService.getById(qMeta.emailTemplateId as string);
+              if (tpl && tpl.isActive) {
+                const leadVars: Record<string, string> = {
+                  firstName: attempt.lead.firstName,
+                  lastName: attempt.lead.lastName,
+                  email: attempt.lead.email ?? "",
+                  phone: attempt.lead.phone ?? "",
+                };
+                const rendered = EmailTemplateService.renderTemplate(tpl, leadVars);
+                qEmailTemplate = {
+                  subject: rendered.subject,
+                  htmlBody: rendered.htmlBody,
+                  textBody: rendered.textBody,
+                  fromEmail: tpl.fromEmail,
+                  fromName: tpl.fromName,
+                };
+              }
+            }
+
+            result = await PostmarkService.sendEmail(attempt.lead, qEmailTemplate ?? {
               subject: attempt.script.name,
               htmlBody: attempt.script.content || "",
             });

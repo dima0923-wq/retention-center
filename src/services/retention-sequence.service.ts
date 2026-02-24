@@ -460,16 +460,21 @@ export class RetentionSequenceService {
       return { success: true };
     }
 
-    // Parse step conditions for VAPI config
+    // Parse step conditions for channel-specific config
     let campaignMeta: string | null = null;
-    if (step.channel === "CALL") {
-      try {
-        const conditions = JSON.parse(step.conditions);
-        if (conditions.vapiConfig) {
-          campaignMeta = JSON.stringify({ vapiConfig: conditions.vapiConfig });
-        }
-      } catch {}
-    }
+    try {
+      const conditions = JSON.parse(step.conditions);
+      const metaObj: Record<string, unknown> = {};
+      if (step.channel === "CALL" && conditions.vapiConfig) {
+        metaObj.vapiConfig = conditions.vapiConfig;
+      }
+      if (step.channel === "EMAIL" && conditions.emailTemplateId) {
+        metaObj.emailTemplateId = conditions.emailTemplateId;
+      }
+      if (Object.keys(metaObj).length > 0) {
+        campaignMeta = JSON.stringify(metaObj);
+      }
+    } catch {}
 
     // Send message through the channel router
     // We create a synthetic campaign object for the router

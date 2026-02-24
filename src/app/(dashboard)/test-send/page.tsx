@@ -170,6 +170,189 @@ function EmailTab({ campaigns }: { campaigns: Campaign[] }) {
   );
 }
 
+// ─── Postmark Email Tab ──────────────────────────────────────────────────────
+
+type EmailTemplateOption = {
+  id: string;
+  name: string;
+  subject: string;
+  fromEmail: string;
+  fromName: string;
+};
+
+function PostmarkEmailTab() {
+  const [to, setTo] = useState("");
+  const [subject, setSubject] = useState("");
+  const [body, setBody] = useState("");
+  const [templateId, setTemplateId] = useState("__none__");
+  const [templates, setTemplates] = useState<EmailTemplateOption[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [templatesLoading, setTemplatesLoading] = useState(true);
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    fetch("/api/email-templates?isActive=true")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data: EmailTemplateOption[]) => {
+        setTemplates(Array.isArray(data) ? data : []);
+      })
+      .catch(() => {})
+      .finally(() => setTemplatesLoading(false));
+  }, []);
+
+  function handleTemplateChange(id: string) {
+    setTemplateId(id);
+    if (id === "__none__") return;
+    const tpl = templates.find((t) => t.id === id);
+    if (tpl) {
+      setSubject(tpl.subject);
+    }
+  }
+
+  function insertVariable(variable: string) {
+    const el = bodyRef.current;
+    if (!el) {
+      setBody((prev) => prev + variable);
+      return;
+    }
+    const start = el.selectionStart ?? body.length;
+    const end = el.selectionEnd ?? body.length;
+    const newBody = body.slice(0, start) + variable + body.slice(end);
+    setBody(newBody);
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(start + variable.length, start + variable.length);
+    });
+  }
+
+  async function handleSend() {
+    if (!to) {
+      toast.error("Please enter a recipient email.");
+      return;
+    }
+    const useTemplate = templateId !== "__none__";
+    if (!useTemplate && (!subject || !body)) {
+      toast.error("Please fill in Subject and Body, or select a template.");
+      return;
+    }
+    setLoading(true);
+    try {
+      const payload: Record<string, string> = { to };
+      if (useTemplate) {
+        payload.templateId = templateId;
+      } else {
+        payload.subject = subject;
+        payload.body = body;
+      }
+      const res = await fetch("/api/test-send/postmark-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to send email");
+      toast.success(
+        useTemplate
+          ? "Test email sent via Postmark using template."
+          : "Test email sent via Postmark."
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to send email");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Send Test Email via Postmark</CardTitle>
+        <CardDescription>
+          Send a one-off test email via Postmark. Optionally use an email template.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-1.5">
+          <Label htmlFor="pm-email-to">To</Label>
+          <Input
+            id="pm-email-to"
+            type="email"
+            placeholder="recipient@example.com"
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label>Email Template (optional)</Label>
+          <Select
+            value={templateId}
+            onValueChange={handleTemplateChange}
+            disabled={templatesLoading}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue
+                placeholder={templatesLoading ? "Loading..." : "Select template"}
+              />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">No template (manual)</SelectItem>
+              {templates.map((t) => (
+                <SelectItem key={t.id} value={t.id}>
+                  {t.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {templates.length === 0 && !templatesLoading && (
+            <p className="text-xs text-muted-foreground">
+              No active templates found. Create one in Email Templates first.
+            </p>
+          )}
+        </div>
+
+        {templateId === "__none__" && (
+          <>
+            <div className="space-y-1.5">
+              <Label htmlFor="pm-email-subject">Subject</Label>
+              <Input
+                id="pm-email-subject"
+                placeholder="Email subject"
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="pm-email-body">Body (HTML)</Label>
+                <TemplateVariableInserter onInsert={insertVariable} />
+              </div>
+              <Textarea
+                id="pm-email-body"
+                ref={bodyRef}
+                placeholder="Email body — supports {{firstName}}, {{lastName}}, etc."
+                rows={6}
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+              />
+            </div>
+          </>
+        )}
+
+        <Button onClick={handleSend} disabled={loading} className="w-full sm:w-auto">
+          {loading ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <Send className="mr-2 h-4 w-4" />
+          )}
+          Send via Postmark
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ─── SMS Tab ──────────────────────────────────────────────────────────────────
 
 function SmsTab() {
@@ -563,13 +746,18 @@ export default function TestSendPage() {
 
       <Tabs defaultValue="email">
         <TabsList>
-          <TabsTrigger value="email">Email</TabsTrigger>
+          <TabsTrigger value="email">Email (Instantly)</TabsTrigger>
+          <TabsTrigger value="postmark">Email (Postmark)</TabsTrigger>
           <TabsTrigger value="sms">SMS</TabsTrigger>
           <TabsTrigger value="call">Call</TabsTrigger>
         </TabsList>
 
         <TabsContent value="email" className="mt-4">
           <EmailTab campaigns={campaigns} />
+        </TabsContent>
+
+        <TabsContent value="postmark" className="mt-4">
+          <PostmarkEmailTab />
         </TabsContent>
 
         <TabsContent value="sms" className="mt-4">
