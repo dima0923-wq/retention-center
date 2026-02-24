@@ -14,6 +14,21 @@ export interface AuthUser {
 const tokenCache = new Map<string, { user: AuthUser; expires: number }>()
 
 export async function verifyApiAuth(request: NextRequest): Promise<AuthUser> {
+  // Service-to-service API key bypass (for Hermes, Traffic Center, etc.)
+  const serviceKey = request.headers.get('x-service-key')
+  if (serviceKey && serviceKey === process.env.SERVICE_API_KEY) {
+    return {
+      id: 'service',
+      telegramId: 'service',
+      username: 'service',
+      firstName: 'Service Account',
+      photoUrl: null,
+      role: 'admin',
+      project: 'retention_center',
+      permissions: ['*:*:*'],
+    }
+  }
+
   // 1. Extract token from Authorization header or ac_access cookie
   const authHeader = request.headers.get('authorization')
   let token: string | null = null
