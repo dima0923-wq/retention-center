@@ -361,6 +361,119 @@ export class VapiService {
     }
   }
 
+  /**
+   * Upsert VapiCall record from a webhook payload (end-of-call-report or status-update ended).
+   */
+  static async upsertVapiCallFromWebhook(data: VapiWebhookPayload) {
+    if (!data.call?.id) return;
+    const call = data.call;
+
+    const transcript = call.transcript ?? data.artifact?.transcript ?? null;
+    const messages = call.messages ?? data.artifact?.messages ?? null;
+    const recordingUrl = call.recordingUrl ?? data.artifact?.recordingUrl ?? null;
+    const stereoRecordingUrl = call.stereoRecordingUrl ?? data.artifact?.stereoRecordingUrl ?? null;
+
+    // Find linked ContactAttempt if any
+    const attempt = await prisma.contactAttempt.findFirst({
+      where: { providerRef: call.id },
+      select: { id: true },
+    });
+
+    const upsertData = {
+      status: call.status ?? "ended",
+      customerNumber: call.customer?.number ?? null,
+      customerName: call.customer?.name ?? null,
+      duration: call.duration ?? null,
+      cost: call.cost ?? null,
+      endedReason: call.endedReason ?? null,
+      transcript: transcript ?? null,
+      messages: messages ? JSON.stringify(messages) : null,
+      recordingUrl,
+      stereoRecordingUrl,
+      summary: call.analysis?.summary ?? null,
+      successEvaluation: call.analysis?.successEvaluation ?? null,
+      structuredData: call.analysis?.structuredData
+        ? JSON.stringify(call.analysis.structuredData)
+        : null,
+      contactAttemptId: attempt?.id ?? null,
+    };
+
+    await prisma.vapiCall.upsert({
+      where: { vapiCallId: call.id },
+      create: {
+        vapiCallId: call.id,
+        ...upsertData,
+      },
+      update: upsertData,
+    });
+  }
+
+  /**
+   * Fetch a single call from the VAPI API and upsert VapiCall record.
+   */
+  static async syncCallFromApi(vapiCallId: string): Promise<{ ok: boolean; error?: string }> {
+    const config = await getConfig();
+    if (!config) return { ok: false, error: "VAPI integration not configured or inactive" };
+
+    const baseUrl = config.baseUrl || "https://api.vapi.ai";
+
+    const res = await fetch(`${baseUrl}/call/${vapiCallId}`, {
+      headers: { Authorization: `Bearer ${config.apiKey}` },
+    });
+
+    if (!res.ok) {
+      return { ok: false, error: `VAPI API error ${res.status}` };
+    }
+
+    const call = (await res.json()) as VapiCallData & {
+      type?: string;
+      assistantId?: string;
+      phoneNumberId?: string;
+      startedAt?: string;
+      endedAt?: string;
+      costBreakdown?: Record<string, unknown>;
+    };
+
+    // Find linked ContactAttempt if any
+    const attempt = await prisma.contactAttempt.findFirst({
+      where: { providerRef: vapiCallId },
+      select: { id: true },
+    });
+
+    const upsertData = {
+      type: call.type ?? null,
+      status: call.status ?? "unknown",
+      assistantId: call.assistantId ?? null,
+      phoneNumberId: call.phoneNumberId ?? null,
+      customerNumber: call.customer?.number ?? null,
+      customerName: call.customer?.name ?? null,
+      startedAt: call.startedAt ? new Date(call.startedAt) : null,
+      endedAt: call.endedAt ? new Date(call.endedAt) : null,
+      duration: call.duration ?? null,
+      cost: call.cost ?? null,
+      costBreakdown: call.costBreakdown ? JSON.stringify(call.costBreakdown) : null,
+      transcript: call.transcript ?? null,
+      messages: call.messages ? JSON.stringify(call.messages) : null,
+      recordingUrl: call.recordingUrl ?? null,
+      stereoRecordingUrl: call.stereoRecordingUrl ?? null,
+      summary: call.analysis?.summary ?? null,
+      successEvaluation: call.analysis?.successEvaluation ?? null,
+      structuredData: call.analysis?.structuredData
+        ? JSON.stringify(call.analysis.structuredData)
+        : null,
+      endedReason: call.endedReason ?? null,
+      contactAttemptId: attempt?.id ?? null,
+    };
+
+    await prisma.vapiCall.upsert({
+      where: { vapiCallId },
+      create: { vapiCallId, ...upsertData },
+      update: upsertData,
+    });
+
+    return { ok: true };
+  }
+
   static async testConnection(): Promise<{ ok: boolean; error?: string }> {
     const config = await getConfig();
     if (!config) return { ok: false, error: "Not configured" };

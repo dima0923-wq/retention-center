@@ -25,6 +25,33 @@ export async function POST(req: NextRequest) {
     `[VAPI Webhook] event=${eventType} callId=${callId} callStatus=${callStatus ?? "n/a"}`
   );
 
+  // Store every webhook event in VapiCallLog for audit trail
+  if (callId !== "no-call-id") {
+    try {
+      // Ensure VapiCall record exists so VapiCallLog FK is satisfied
+      await prisma.vapiCall.upsert({
+        where: { vapiCallId: callId },
+        create: {
+          vapiCallId: callId,
+          status: callStatus ?? "unknown",
+          customerNumber: payload.call?.customer?.number ?? null,
+          customerName: payload.call?.customer?.name ?? null,
+        },
+        update: {}, // don't overwrite on log-only insert
+      });
+
+      await prisma.vapiCallLog.create({
+        data: {
+          vapiCallId: callId,
+          eventType,
+          payload: JSON.stringify(payload),
+        },
+      });
+    } catch (logErr) {
+      console.error(`[VAPI Webhook] Failed to store event log for callId=${callId}:`, logErr);
+    }
+  }
+
   try {
     switch (eventType) {
       // Call lifecycle events — update contact attempt
@@ -62,6 +89,38 @@ export async function POST(req: NextRequest) {
           await VapiService.handleCallback(payload);
         }
         break;
+    }
+
+    // Upsert VapiCall with full data on terminal events
+    if (
+      callId !== "no-call-id" &&
+      (eventType === "end-of-call-report" ||
+        (eventType === "status-update" && callStatus === "ended"))
+    ) {
+      try {
+        await VapiService.upsertVapiCallFromWebhook(payload);
+      } catch (upsertErr) {
+        console.error(`[VAPI Webhook] Failed to upsert VapiCall for callId=${callId}:`, upsertErr);
+      }
+    }
+
+    // Update recording URL when recording-ready event arrives
+    if (callId !== "no-call-id" && eventType === "recording-ready") {
+      try {
+        const recUrl = payload.call?.recordingUrl ?? payload.artifact?.recordingUrl ?? null;
+        const stereoUrl = payload.call?.stereoRecordingUrl ?? payload.artifact?.stereoRecordingUrl ?? null;
+        const updateFields: Record<string, unknown> = {};
+        if (recUrl) updateFields.recordingUrl = recUrl;
+        if (stereoUrl) updateFields.stereoRecordingUrl = stereoUrl;
+        if (Object.keys(updateFields).length > 0) {
+          await prisma.vapiCall.update({
+            where: { vapiCallId: callId },
+            data: updateFields,
+          });
+        }
+      } catch (recErr) {
+        console.error(`[VAPI Webhook] Failed to update recording for callId=${callId}:`, recErr);
+      }
     }
 
     // Update sequence step execution if this call is part of a sequence

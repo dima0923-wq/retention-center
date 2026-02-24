@@ -19,6 +19,9 @@ import {
   LogOut,
   Bot,
   Phone,
+  Headphones,
+  MessageSquare,
+  MailOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
@@ -33,7 +36,10 @@ const navItems = [
   { label: "Email Templates", href: "/email-templates", icon: Mail },
   { label: "Integrations", href: "/integrations", icon: Plug },
   { label: "Send a test", href: "/test-send", icon: FlaskConical },
-  { label: "Calls", href: "/calls", icon: Phone },
+  { label: "Call History", href: "/calls", icon: Phone },
+  { label: "VAPI Dashboard", href: "/vapi-calls", icon: Headphones },
+  { label: "SMS Stats", href: "/sms-stats", icon: MessageSquare },
+  { label: "Email Stats", href: "/email-stats", icon: MailOpen },
   { label: "Conversions", href: "/conversions", icon: Target },
   { label: "Learning", href: "/learning", icon: GraduationCap },
   { label: "Reports", href: "/reports", icon: BarChart3 },

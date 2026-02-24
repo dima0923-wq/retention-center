@@ -316,3 +316,55 @@ model ZapierWebhookConfig {
   @@index([campaignId])
   @@index([metaFormId])
 }
+
+// ─── VAPI Call Models ──────────────────────────────────────────────────────
+
+model VapiCall {
+  id                 String    @id @default(cuid())
+  vapiCallId         String    @unique
+  type               String?   // inboundPhoneCall, outboundPhoneCall, webCall
+  status             String    // scheduled, queued, ringing, in-progress, ended
+  assistantId        String?
+  phoneNumberId      String?
+  customerNumber     String?
+  customerName       String?
+  startedAt          DateTime?
+  endedAt            DateTime?
+  duration           Int?      // seconds
+  cost               Float?
+  costBreakdown      String?   @default("{}") // JSON of transport, stt, llm, tts, vapi costs
+  transcript         String?   // full text transcript
+  messages           String?   @default("[]") // JSON array of role/content messages
+  recordingUrl       String?
+  stereoRecordingUrl String?
+  summary            String?   // from analysis
+  successEvaluation  String?
+  structuredData     String?   @default("{}")
+  endedReason        String?
+  contactAttemptId   String?   // link to our ContactAttempt if call was initiated from RC
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  logs VapiCallLog[]
+
+  @@index([vapiCallId])
+  @@index([status])
+  @@index([customerNumber])
+  @@index([assistantId])
+  @@index([startedAt])
+  @@index([contactAttemptId])
+}
+
+model VapiCallLog {
+  id         String   @id @default(cuid())
+  vapiCallId String
+  eventType  String
+  payload    String   // raw JSON
+  createdAt  DateTime @default(now())
+
+  vapiCall VapiCall @relation(fields: [vapiCallId], references: [vapiCallId], onDelete: Cascade)
+
+  @@index([vapiCallId])
+  @@index([eventType])
+  @@index([createdAt])
+}
