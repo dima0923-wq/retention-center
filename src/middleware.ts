@@ -41,7 +41,7 @@ export function middleware(request: NextRequest) {
           );
         }
         const callbackUrl = `${SELF_URL}/auth/token`;
-        const loginUrl = `${AUTH_CENTER_URL}/login?redirect_url=${encodeURIComponent(callbackUrl)}`;
+        const loginUrl = `${AUTH_CENTER_URL}/login?redirect_url=${encodeURIComponent(callbackUrl)}&error=no_project_access&project=retention_center`;
         return NextResponse.redirect(loginUrl);
       }
     } catch {
