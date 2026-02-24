@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { RetentionSequenceService } from "@/services/retention-sequence.service";
 import { sequenceEnrollSchema } from "@/lib/validators";
-import { verifyApiAuth, AuthError, authErrorResponse } from "@/lib/api-auth";
+import { verifyApiAuth, AuthError, authErrorResponse , requirePermission } from "@/lib/api-auth";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
 export async function POST(req: NextRequest, context: RouteContext) {
   try {
-    await verifyApiAuth(req);
+    const user = await verifyApiAuth(req);
+    requirePermission(user, 'retention:campaigns:edit');
     const { id } = await context.params;
     const body = await req.json();
     const parsed = sequenceEnrollSchema.safeParse(body);

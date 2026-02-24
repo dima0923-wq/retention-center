@@ -9,6 +9,7 @@ import type {
   LeadStats,
 } from "@/types";
 import type { Prisma } from "@/generated/prisma/client";
+import { MetaCapiService } from "@/services/meta-capi.service";
 
 export class LeadService {
   static async create(input: LeadCreateInput) {
@@ -39,6 +40,13 @@ export class LeadService {
         notes: input.notes || null,
       },
     });
+
+    // Send Meta CAPI event for META-sourced leads
+    if (input.source === "META") {
+      MetaCapiService.sendLeadEvent(lead).catch((err) => {
+        console.error("Meta CAPI lead event failed:", err);
+      });
+    }
 
     return { lead, deduplicated: false };
   }
@@ -76,6 +84,9 @@ export class LeadService {
     if (filters.source) {
       where.source = filters.source as string;
     }
+    if (filters.scoreLabel) {
+      where.scoreLabel = filters.scoreLabel as string;
+    }
     if (filters.search) {
       where.OR = [
         { firstName: { contains: filters.search} },
@@ -94,7 +105,7 @@ export class LeadService {
       }
     }
 
-    const allowedSortFields = ["createdAt", "firstName", "lastName", "email", "status", "source"];
+    const allowedSortFields = ["createdAt", "firstName", "lastName", "email", "status", "source", "score"];
     const safeSort = allowedSortFields.includes(sortBy) ? sortBy : "createdAt";
 
     const [data, total] = await Promise.all([

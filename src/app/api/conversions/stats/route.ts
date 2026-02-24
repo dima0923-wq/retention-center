@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { verifyApiAuth, AuthError, authErrorResponse } from "@/lib/api-auth";
+import { verifyApiAuth, AuthError, authErrorResponse , requirePermission } from "@/lib/api-auth";
 
 export async function GET(req: NextRequest) {
   try {
-    await verifyApiAuth(req);
+    const user = await verifyApiAuth(req);
+    requirePermission(user, 'retention:analytics:view');
     const url = req.nextUrl;
     const from = url.searchParams.get("from") || undefined;
     const to = url.searchParams.get("to") || undefined;

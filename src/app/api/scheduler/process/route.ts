@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SchedulerService } from "@/services/scheduler.service";
-import { verifyApiAuth, authErrorResponse, AuthError } from "@/lib/api-auth";
+import { verifyApiAuth, authErrorResponse, AuthError , requirePermission } from "@/lib/api-auth";
 
 export async function POST(request: NextRequest) {
   try {
     const user = await verifyApiAuth(request);
+    requirePermission(user, 'retention:campaigns:edit');
     const result = await SchedulerService.processScheduledContacts();
     return NextResponse.json(result);
   } catch (error) {

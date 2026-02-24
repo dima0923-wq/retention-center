@@ -10,6 +10,7 @@ const PUBLIC_PATHS = [
   "/api/webhooks/",
   "/favicon.ico",
   "/api/auth/",
+  "/api/cron/",
 ];
 
 export function middleware(request: NextRequest) {
@@ -28,6 +29,25 @@ export function middleware(request: NextRequest) {
     tokenValue.length > 20;
 
   if (isValidFormat) {
+    // Check project claim in JWT payload
+    try {
+      const payload = JSON.parse(atob(tokenValue.split('.')[1]));
+      if (payload.project && payload.project !== 'retention_center') {
+        // Wrong project — redirect to Auth Center login with correct project
+        if (pathname.startsWith("/api/")) {
+          return NextResponse.json(
+            { error: "Access denied: not authorized for this project" },
+            { status: 403 }
+          );
+        }
+        const callbackUrl = `${SELF_URL}/auth/token`;
+        const loginUrl = `${AUTH_CENTER_URL}/login?redirect_url=${encodeURIComponent(callbackUrl)}`;
+        return NextResponse.redirect(loginUrl);
+      }
+    } catch {
+      // If JWT decode fails, let it pass — Auth Center will verify properly
+    }
+
     const response = NextResponse.next();
     response.headers.set(
       "Cache-Control",

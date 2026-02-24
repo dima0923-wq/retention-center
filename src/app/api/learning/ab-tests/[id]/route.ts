@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { ABTestService } from "@/services/ab-test.service";
-import { verifyApiAuth, authErrorResponse, AuthError } from "@/lib/api-auth";
+import { verifyApiAuth, authErrorResponse, AuthError , requirePermission } from "@/lib/api-auth";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
 export async function GET(req: NextRequest, ctx: RouteContext) {
   try {
     const user = await verifyApiAuth(req);
+    requirePermission(user, 'retention:analytics:view');
     const { id } = await ctx.params;
     const result = await ABTestService.getTestResults(id);
     return NextResponse.json(result);
@@ -24,6 +25,7 @@ export async function GET(req: NextRequest, ctx: RouteContext) {
 export async function PATCH(req: NextRequest, ctx: RouteContext) {
   try {
     const user = await verifyApiAuth(req);
+    requirePermission(user, 'retention:campaigns:edit');
     const { id } = await ctx.params;
     const body = await req.json();
 
@@ -79,6 +81,7 @@ export async function PATCH(req: NextRequest, ctx: RouteContext) {
 export async function DELETE(req: NextRequest, ctx: RouteContext) {
   try {
     const user = await verifyApiAuth(req);
+    requirePermission(user, 'retention:campaigns:delete');
     const { id } = await ctx.params;
     const existing = await prisma.aBTest.findUnique({ where: { id } });
     if (!existing) {

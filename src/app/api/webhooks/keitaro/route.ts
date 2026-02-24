@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { ABTestService } from "@/services/ab-test.service";
 import { RetentionSequenceService } from "@/services/retention-sequence.service";
+import { MetaCapiService } from "@/services/meta-capi.service";
 
 interface KeitaroParams {
   sub_id?: string;
@@ -64,6 +65,22 @@ async function handlePostback(params: KeitaroParams): Promise<{ id: string } | N
       contactAttemptId,
     },
   });
+
+  // Fire Meta CAPI event if lead found
+  if (leadId) {
+    const lead = await prisma.lead.findUnique({ where: { id: leadId } });
+    if (lead) {
+      if (status === "sale") {
+        MetaCapiService.sendConversionEvent(lead, conversion.revenue, conversion.id).catch((err) => {
+          console.error("Meta CAPI conversion event failed:", err);
+        });
+      } else if (status === "lead" && lead.source === "META") {
+        MetaCapiService.sendLeadEvent(lead).catch((err) => {
+          console.error("Meta CAPI lead event failed:", err);
+        });
+      }
+    }
+  }
 
   // Record A/B test outcome if the contact attempt was part of a test
   if (contactAttemptId) {

@@ -25,6 +25,7 @@ type Step = {
   delayValue: number;
   delayUnit: string;
   isActive: boolean;
+  conditions?: string | Record<string, unknown>;
   _count?: { executions: number };
   stats?: {
     sent: number;
@@ -59,6 +60,15 @@ export function SequenceTimeline({ steps, showStats = false }: SequenceTimelineP
         };
         const Icon = config.icon;
         const unitLabel = delayUnitLabels[step.delayUnit] ?? step.delayUnit;
+
+        // Parse VAPI config from conditions
+        let vapiConfig: { assistantId?: string; phoneNumberId?: string; voice?: string; model?: string; firstMessage?: string } | null = null;
+        if (step.channel === "CALL" && step.conditions) {
+          try {
+            const cond = typeof step.conditions === "string" ? JSON.parse(step.conditions) : step.conditions;
+            if (cond?.vapiConfig) vapiConfig = cond.vapiConfig;
+          } catch {}
+        }
 
         return (
           <div key={step.id}>
@@ -101,11 +111,26 @@ export function SequenceTimeline({ steps, showStats = false }: SequenceTimelineP
                       Disabled
                     </Badge>
                   )}
+                  {vapiConfig?.assistantId && (
+                    <Badge variant="outline" className="text-xs bg-orange-50 text-orange-700 border-orange-200">
+                      VAPI
+                    </Badge>
+                  )}
                 </div>
                 {step.script && (
                   <p className="text-xs text-muted-foreground truncate">
                     Script: {step.script.name}
                   </p>
+                )}
+                {vapiConfig && (vapiConfig.assistantId || vapiConfig.voice || vapiConfig.model) && (
+                  <div className="flex items-center gap-2 mt-0.5">
+                    {vapiConfig.model && (
+                      <span className="text-xs text-muted-foreground">Model: {vapiConfig.model}</span>
+                    )}
+                    {vapiConfig.voice && (
+                      <span className="text-xs text-muted-foreground">Voice: {vapiConfig.voice}</span>
+                    )}
+                  </div>
                 )}
               </div>
               {showStats && step.stats && (

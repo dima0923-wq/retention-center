@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { EmailTemplateService } from "@/services/email-template.service";
 import { emailTemplateUpdateSchema } from "@/lib/validators";
-import { verifyApiAuth, authErrorResponse, AuthError } from "@/lib/api-auth";
+import { verifyApiAuth, authErrorResponse, AuthError , requirePermission } from "@/lib/api-auth";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
 export async function GET(_req: NextRequest, context: RouteContext) {
   try {
     const user = await verifyApiAuth(_req);
+    requirePermission(user, 'retention:templates:manage');
     const { id } = await context.params;
     const template = await EmailTemplateService.getById(id);
     if (!template) {
@@ -24,6 +25,7 @@ export async function GET(_req: NextRequest, context: RouteContext) {
 export async function PUT(req: NextRequest, context: RouteContext) {
   try {
     const user = await verifyApiAuth(req);
+    requirePermission(user, 'retention:templates:manage');
     const { id } = await context.params;
     const body = await req.json();
     const parsed = emailTemplateUpdateSchema.safeParse(body);
@@ -42,6 +44,7 @@ export async function PUT(req: NextRequest, context: RouteContext) {
 export async function DELETE(_req: NextRequest, context: RouteContext) {
   try {
     const user = await verifyApiAuth(_req);
+    requirePermission(user, 'retention:templates:manage');
     const { id } = await context.params;
     await EmailTemplateService.delete(id);
     return NextResponse.json({ success: true });

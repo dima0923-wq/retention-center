@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { CampaignService } from "@/services/campaign.service";
 import { campaignUpdateSchema } from "@/lib/validators";
-import { verifyApiAuth, authErrorResponse, AuthError } from "@/lib/api-auth";
+import { verifyApiAuth, authErrorResponse, AuthError, requirePermission } from "@/lib/api-auth";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
 export async function GET(_req: NextRequest, context: RouteContext) {
   try {
     const user = await verifyApiAuth(_req);
+    requirePermission(user, 'retention:campaigns:view');
     const { id } = await context.params;
     const campaign = await CampaignService.getById(id);
     if (!campaign) {
@@ -24,6 +25,7 @@ export async function GET(_req: NextRequest, context: RouteContext) {
 export async function PATCH(req: NextRequest, context: RouteContext) {
   try {
     const user = await verifyApiAuth(req);
+    requirePermission(user, 'retention:campaigns:edit');
     const { id } = await context.params;
     const body = await req.json();
     const parsed = campaignUpdateSchema.safeParse(body);
@@ -48,6 +50,7 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
 export async function DELETE(_req: NextRequest, context: RouteContext) {
   try {
     const user = await verifyApiAuth(_req);
+    requirePermission(user, 'retention:campaigns:delete');
     const { id } = await context.params;
     const result = await CampaignService.delete(id);
     if (!result) {

@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ZapierConfigService } from "@/services/zapier-config.service";
-import { verifyApiAuth, authErrorResponse, AuthError } from "@/lib/api-auth";
+import { verifyApiAuth, authErrorResponse, AuthError , requirePermission } from "@/lib/api-auth";
 
 export async function GET(req: NextRequest) {
   try {
     const user = await verifyApiAuth(req);
+    requirePermission(user, 'retention:templates:manage');
     const campaignId = req.nextUrl.searchParams.get("campaignId") ?? undefined;
     const configs = await ZapierConfigService.findAll(campaignId);
     return NextResponse.json(configs);
@@ -18,6 +19,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await verifyApiAuth(req);
+    requirePermission(user, 'retention:templates:manage');
     const body = await req.json();
     if (!body.campaignId || !body.metaCampaignId) {
       return NextResponse.json(

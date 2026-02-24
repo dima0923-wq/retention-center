@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getLeadFunnel } from "@/services/report.service";
-import { verifyApiAuth, authErrorResponse, AuthError } from "@/lib/api-auth";
+import { verifyApiAuth, authErrorResponse, AuthError , requirePermission } from "@/lib/api-auth";
 
 export async function GET(request: NextRequest) {
   try {
     const user = await verifyApiAuth(request);
+    requirePermission(user, 'retention:analytics:view');
     const { searchParams } = request.nextUrl;
     const from = searchParams.get("from");
     const to = searchParams.get("to");

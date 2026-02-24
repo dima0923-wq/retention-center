@@ -54,6 +54,11 @@ export async function verifyApiAuth(request: NextRequest): Promise<AuthUser> {
     throw new AuthError('Token verification failed', 401)
   }
 
+  // Reject tokens not issued for this project
+  if (data.project && data.project !== 'retention_center') {
+    throw new AuthError('Access denied: not authorized for this project', 403)
+  }
+
   const user: AuthUser = {
     id: data.user.id,
     telegramId: data.user.telegramId,
@@ -78,6 +83,30 @@ export class AuthError extends Error {
     this.name = 'AuthError'
     this.status = status
   }
+}
+
+/**
+ * Check if user has the required permission.
+ * Supports wildcard matching: "*:*:*" grants all permissions.
+ * Throws AuthError(403) if permission is missing.
+ */
+export function requirePermission(user: AuthUser, permission: string): void {
+  if (hasPermission(user, permission)) return
+  throw new AuthError(`Forbidden: missing permission '${permission}'`, 403)
+}
+
+/**
+ * Check if user has a specific permission (without throwing).
+ * Supports wildcard segments: "*:*:*" matches everything,
+ * "retention:*:*" matches all retention permissions, etc.
+ */
+export function hasPermission(user: AuthUser, permission: string): boolean {
+  const requiredParts = permission.split(':')
+  return user.permissions.some(p => {
+    const parts = p.split(':')
+    if (parts.length !== requiredParts.length) return false
+    return parts.every((part, i) => part === '*' || part === requiredParts[i])
+  })
 }
 
 export function authErrorResponse(error: unknown): NextResponse {

@@ -13,9 +13,18 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Save, MessageSquare } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { ArrowLeft, Save, MessageSquare, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { SendSmsDialog } from "@/components/leads/SendSmsDialog";
+
+const scoreLabelConfig: Record<string, { label: string; className: string }> = {
+  HOT: { label: "Hot", className: "bg-red-100 text-red-800 border-red-200" },
+  WARM: { label: "Warm", className: "bg-yellow-100 text-yellow-800 border-yellow-200" },
+  COLD: { label: "Cold", className: "bg-blue-100 text-blue-800 border-blue-200" },
+  DEAD: { label: "Dead", className: "bg-gray-100 text-gray-800 border-gray-200" },
+  NEW: { label: "New", className: "bg-green-100 text-green-800 border-green-200" },
+};
 
 const STATUSES = [
   { value: "NEW", label: "New" },
@@ -40,6 +49,7 @@ export default function LeadDetailPage({
   const [editNotes, setEditNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [smsOpen, setSmsOpen] = useState(false);
+  const [recalculating, setRecalculating] = useState(false);
 
   useEffect(() => {
     async function fetchLead() {
@@ -85,6 +95,21 @@ export default function LeadDetailPage({
     }
   };
 
+  const handleRecalculateScore = async () => {
+    setRecalculating(true);
+    try {
+      const res = await fetch(`/api/leads/${id}/score`, { method: "POST" });
+      if (!res.ok) throw new Error("Failed to recalculate");
+      const data = await res.json();
+      setLead({ ...lead, score: data.score, scoreLabel: data.label });
+      toast.success(`Score updated: ${data.score} (${data.label})`);
+    } catch {
+      toast.error("Failed to recalculate score");
+    } finally {
+      setRecalculating(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -111,6 +136,31 @@ export default function LeadDetailPage({
       </div>
 
       <LeadDetailCard lead={lead} />
+
+      {/* Lead Score Section */}
+      <div className="flex items-center gap-4 rounded-lg border p-4">
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-medium text-muted-foreground">Lead Score:</span>
+          <span className="text-2xl font-bold">{lead.score ?? 0}</span>
+          {lead.scoreLabel && (
+            <Badge
+              variant="outline"
+              className={scoreLabelConfig[lead.scoreLabel]?.className || ""}
+            >
+              {scoreLabelConfig[lead.scoreLabel]?.label || lead.scoreLabel}
+            </Badge>
+          )}
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleRecalculateScore}
+          disabled={recalculating}
+        >
+          <RefreshCw className={`h-4 w-4 mr-1 ${recalculating ? "animate-spin" : ""}`} />
+          {recalculating ? "Recalculating..." : "Recalculate"}
+        </Button>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="space-y-4">

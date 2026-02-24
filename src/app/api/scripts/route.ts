@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ScriptService } from "@/services/script.service";
 import { scriptCreateSchema, scriptFiltersSchema } from "@/lib/validators";
-import { verifyApiAuth, authErrorResponse, AuthError } from "@/lib/api-auth";
+import { verifyApiAuth, authErrorResponse, AuthError , requirePermission } from "@/lib/api-auth";
 
 export async function GET(req: NextRequest) {
   try {
     const user = await verifyApiAuth(req);
+    requirePermission(user, 'retention:templates:manage');
     const params = Object.fromEntries(req.nextUrl.searchParams);
     const parsed = scriptFiltersSchema.safeParse(params);
     if (!parsed.success) {
@@ -23,6 +24,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await verifyApiAuth(req);
+    requirePermission(user, 'retention:templates:manage');
     const body = await req.json();
     const parsed = scriptCreateSchema.safeParse(body);
     if (!parsed.success) {

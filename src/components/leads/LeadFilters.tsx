@@ -28,6 +28,14 @@ const SOURCES = [
   { value: "API", label: "API" },
 ];
 
+const SCORE_LABELS = [
+  { value: "HOT", label: "Hot" },
+  { value: "WARM", label: "Warm" },
+  { value: "COLD", label: "Cold" },
+  { value: "DEAD", label: "Dead" },
+  { value: "NEW", label: "New" },
+];
+
 export function LeadFilters() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -55,6 +63,7 @@ export function LeadFilters() {
     searchParams.has("search") ||
     searchParams.has("status") ||
     searchParams.has("source") ||
+    searchParams.has("scoreLabel") ||
     searchParams.has("dateFrom") ||
     searchParams.has("dateTo");
 
@@ -98,6 +107,23 @@ export function LeadFilters() {
         <SelectContent>
           <SelectItem value="all">All Sources</SelectItem>
           {SOURCES.map((s) => (
+            <SelectItem key={s.value} value={s.value}>
+              {s.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      <Select
+        value={searchParams.get("scoreLabel") || "all"}
+        onValueChange={(value) => updateFilter("scoreLabel", value === "all" ? null : value)}
+      >
+        <SelectTrigger className="w-32">
+          <SelectValue placeholder="Score" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All Scores</SelectItem>
+          {SCORE_LABELS.map((s) => (
             <SelectItem key={s.value} value={s.value}>
               {s.label}
             </SelectItem>

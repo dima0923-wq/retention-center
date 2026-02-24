@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getEmailAnalytics } from "@/services/report.service";
-import { verifyApiAuth, AuthError, authErrorResponse } from "@/lib/api-auth";
+import { verifyApiAuth, AuthError, authErrorResponse , requirePermission } from "@/lib/api-auth";
 
 export async function GET(request: NextRequest) {
   try {
-    await verifyApiAuth(request);
+    const user = await verifyApiAuth(request);
+    requirePermission(user, 'retention:analytics:view');
     const from = new Date();
     from.setDate(from.getDate() - 30);
     const to = new Date();

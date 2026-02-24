@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { LeadService } from "@/services/lead.service";
-import { verifyApiAuth, authErrorResponse, AuthError } from "@/lib/api-auth";
+import { verifyApiAuth, authErrorResponse, AuthError , requirePermission } from "@/lib/api-auth";
 
 export async function GET(request: NextRequest) {
   try {
     const user = await verifyApiAuth(request);
+    requirePermission(user, 'retention:analytics:view');
     const stats = await LeadService.getStats();
     return NextResponse.json(stats);
   } catch (error) {

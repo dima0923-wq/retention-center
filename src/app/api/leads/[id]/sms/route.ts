@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
 import { sendSmsToLead } from "@/services/channel/sms.service";
-import { verifyApiAuth, authErrorResponse, AuthError } from "@/lib/api-auth";
+import { verifyApiAuth, authErrorResponse, AuthError , requirePermission } from "@/lib/api-auth";
 
 const sendSmsSchema = z.object({
   message: z.string().min(1, "Message is required"),
@@ -15,6 +15,7 @@ export async function POST(
 ) {
   try {
     const user = await verifyApiAuth(request);
+    requirePermission(user, 'retention:contacts:manage');
     const { id } = await params;
 
     // Validate body first

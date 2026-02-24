@@ -15,6 +15,8 @@ type Lead = {
   phone: string | null;
   source: string;
   status: string;
+  score: number;
+  scoreLabel: string;
   createdAt: string;
 };
 

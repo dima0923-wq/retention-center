@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
-import { verifyApiAuth, AuthError, authErrorResponse } from "@/lib/api-auth";
+import { verifyApiAuth, AuthError, authErrorResponse , requirePermission } from "@/lib/api-auth";
 
 const callSchema = z.object({
   to: z.string().regex(/^\+[1-9]\d{1,14}$/, "Phone must be in E.164 format"),
@@ -16,7 +16,8 @@ const callSchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
-    await verifyApiAuth(req);
+    const user = await verifyApiAuth(req);
+    requirePermission(user, 'retention:templates:manage');
     const rawBody = await req.json();
     const parsed = callSchema.safeParse(rawBody);
     if (!parsed.success) {
@@ -61,21 +62,25 @@ export async function POST(req: NextRequest) {
       customer: { number: to },
     };
 
-    if (resolvedPhoneNumberId) {
+    // Only include phoneNumberId if it's a valid UUID
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (resolvedPhoneNumberId && uuidRegex.test(resolvedPhoneNumberId)) {
       payload.phoneNumberId = resolvedPhoneNumberId;
     }
 
     if (resolvedAssistantId) {
-      // Use the stored/provided assistant ID
+      // Use the stored/provided assistant with optional overrides
       payload.assistantId = resolvedAssistantId;
 
-      // Allow overriding specific assistant properties via assistantOverrides
       const overrides: Record<string, unknown> = {};
-      if (voice) overrides.voice = { voiceId: voice };
-      if (model) overrides.model = { model };
+      if (voice) overrides.voice = { voiceId: voice, provider: "11labs" };
+      if (model || temperature !== undefined) {
+        const modelOverride: Record<string, unknown> = {};
+        if (model) { modelOverride.model = model; modelOverride.provider = "openai"; }
+        if (temperature !== undefined) modelOverride.temperature = temperature;
+        overrides.model = modelOverride;
+      }
       if (firstMessage) overrides.firstMessage = firstMessage;
-      if (instructions) overrides.instructions = instructions;
-      if (temperature !== undefined) overrides.temperature = temperature;
 
       if (Object.keys(overrides).length > 0) {
         payload.assistantOverrides = overrides;

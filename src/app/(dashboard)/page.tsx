@@ -26,6 +26,7 @@ import {
   UserCheck,
   Clock,
   Activity,
+  Gauge,
 } from "lucide-react";
 import {
   LineChart,
@@ -101,6 +102,11 @@ export default function DashboardPage() {
   const [recentEmails, setRecentEmails] = useState<EmailActivity[]>([]);
   const [conversionStats, setConversionStats] = useState<ConversionStats | null>(null);
   const [seqStats, setSeqStats] = useState<SequenceDashboardStats | null>(null);
+  const [scoreStats, setScoreStats] = useState<{
+    total: number;
+    distribution: Record<string, number>;
+    avgScore: number;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -160,6 +166,16 @@ export default function DashboardPage() {
           const seqRes = await fetch("/api/sequences/dashboard-stats");
           if (seqRes.ok) {
             setSeqStats(await seqRes.json());
+          }
+        } catch {
+          // silently ignore
+        }
+
+        // Fetch lead score distribution
+        try {
+          const scoreRes = await fetch("/api/leads/scoring");
+          if (scoreRes.ok) {
+            setScoreStats(await scoreRes.json());
           }
         } catch {
           // silently ignore
@@ -306,6 +322,46 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         ))}
+      </div>
+
+      {/* Lead Score Distribution */}
+      <div>
+        <h2 className="text-lg font-semibold mb-4">Lead Score Distribution</h2>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Avg Score
+              </CardTitle>
+              <Gauge className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {loading ? "..." : scoreStats?.avgScore ?? 0}
+              </div>
+            </CardContent>
+          </Card>
+          {[
+            { key: "HOT", label: "Hot", className: "text-red-600" },
+            { key: "WARM", label: "Warm", className: "text-yellow-600" },
+            { key: "COLD", label: "Cold", className: "text-blue-600" },
+            { key: "DEAD", label: "Dead", className: "text-gray-500" },
+            { key: "NEW", label: "New", className: "text-green-600" },
+          ].map((item) => (
+            <Card key={item.key}>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className={`text-sm font-medium ${item.className}`}>
+                  {item.label}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {loading ? "..." : scoreStats?.distribution?.[item.key] ?? 0}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       </div>
 
       {/* Sequence Stats Section */}

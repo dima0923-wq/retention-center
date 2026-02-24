@@ -12,8 +12,31 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { LeadStatusBadge } from "./LeadStatusBadge";
+import { Badge } from "@/components/ui/badge";
 import { ChevronLeft, ChevronRight, ArrowUpDown } from "lucide-react";
+
+const scoreLabelConfig: Record<string, { label: string; className: string }> = {
+  HOT: { label: "Hot", className: "bg-red-100 text-red-800 border-red-200" },
+  WARM: { label: "Warm", className: "bg-yellow-100 text-yellow-800 border-yellow-200" },
+  COLD: { label: "Cold", className: "bg-blue-100 text-blue-800 border-blue-200" },
+  DEAD: { label: "Dead", className: "bg-gray-100 text-gray-800 border-gray-200" },
+  NEW: { label: "New", className: "bg-green-100 text-green-800 border-green-200" },
+};
+
+function ScoreLabelBadge({ score, label }: { score: number; label: string }) {
+  const config = scoreLabelConfig[label] || { label: label, className: "" };
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-sm font-medium">{score}</span>
+      <Badge variant="outline" className={config.className}>
+        {config.label}
+      </Badge>
+    </div>
+  );
+}
+
 import { format } from "date-fns";
+
 type Lead = {
   id: string;
   firstName: string;
@@ -22,6 +45,8 @@ type Lead = {
   phone: string | null;
   source: string;
   status: string;
+  score: number;
+  scoreLabel: string;
   createdAt: string;
 };
 
@@ -86,6 +111,9 @@ export function LeadTable({ leads, total, page, pageSize, totalPages }: LeadTabl
               <SortButton field="status">Status</SortButton>
             </TableHead>
             <TableHead>
+              <SortButton field="score">Score</SortButton>
+            </TableHead>
+            <TableHead>
               <SortButton field="createdAt">Created</SortButton>
             </TableHead>
           </TableRow>
@@ -93,7 +121,7 @@ export function LeadTable({ leads, total, page, pageSize, totalPages }: LeadTabl
         <TableBody>
           {leads.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+              <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                 No leads found.
               </TableCell>
             </TableRow>
@@ -117,6 +145,9 @@ export function LeadTable({ leads, total, page, pageSize, totalPages }: LeadTabl
                 <TableCell>{lead.source}</TableCell>
                 <TableCell>
                   <LeadStatusBadge status={lead.status} />
+                </TableCell>
+                <TableCell>
+                  <ScoreLabelBadge score={lead.score} label={lead.scoreLabel} />
                 </TableCell>
                 <TableCell className="text-muted-foreground">
                   {format(new Date(lead.createdAt), "MMM d, yyyy")}

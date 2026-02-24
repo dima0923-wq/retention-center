@@ -3,11 +3,12 @@ import { LeadService } from "@/services/lead.service";
 import { CampaignService } from "@/services/campaign.service";
 import { LeadRouterService } from "@/services/lead-router.service";
 import { leadCreateSchema, leadFiltersSchema } from "@/lib/validators";
-import { verifyApiAuth, authErrorResponse, AuthError } from "@/lib/api-auth";
+import { verifyApiAuth, authErrorResponse, AuthError , requirePermission } from "@/lib/api-auth";
 
 export async function GET(request: NextRequest) {
   try {
     const user = await verifyApiAuth(request);
+    requirePermission(user, 'retention:contacts:view');
     const params = Object.fromEntries(request.nextUrl.searchParams);
     const parsed = leadFiltersSchema.safeParse(params);
 
@@ -37,6 +38,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const user = await verifyApiAuth(request);
+    requirePermission(user, 'retention:contacts:manage');
     const body = await request.json();
     const { campaignId, ...leadBody } = body;
     const parsed = leadCreateSchema.safeParse(leadBody);

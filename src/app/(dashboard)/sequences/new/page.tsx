@@ -15,23 +15,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ChannelSelector } from "@/components/campaigns/ChannelSelector";
-import { StepEditor } from "@/components/sequences/StepEditor";
+import { StepEditor, type StepData, type VapiConfig } from "@/components/sequences/StepEditor";
 import { SequenceTimeline } from "@/components/sequences/SequenceTimeline";
 import { ArrowLeft, ArrowRight, Plus, Check } from "lucide-react";
 import { toast } from "sonner";
 
 type Script = { id: string; name: string; type: string };
-
-type StepData = {
-  id?: string;
-  tempId: string;
-  stepOrder: number;
-  channel: string;
-  scriptId: string;
-  delayValue: number;
-  delayUnit: string;
-  isActive: boolean;
-};
 
 const TRIGGER_TYPES = [
   { value: "manual", label: "Manual enrollment" },
@@ -106,6 +95,9 @@ export default function NewSequencePage() {
           delayValue: s.delayValue,
           delayUnit: s.delayUnit,
           isActive: s.isActive,
+          conditions: s.channel === "CALL" && s.vapiConfig
+            ? { vapiConfig: s.vapiConfig }
+            : undefined,
         })),
       };
 
@@ -307,6 +299,9 @@ export default function NewSequencePage() {
                   delayValue: s.delayValue,
                   delayUnit: s.delayUnit,
                   isActive: s.isActive,
+                  conditions: s.channel === "CALL" && s.vapiConfig
+                    ? { vapiConfig: s.vapiConfig }
+                    : undefined,
                 }))}
               />
             </CardContent>

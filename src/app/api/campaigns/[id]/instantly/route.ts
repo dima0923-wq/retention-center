@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { CampaignService } from "@/services/campaign.service";
-import { verifyApiAuth, authErrorResponse, AuthError } from "@/lib/api-auth";
+import { verifyApiAuth, authErrorResponse, AuthError , requirePermission } from "@/lib/api-auth";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
 export async function POST(req: NextRequest, context: RouteContext) {
   try {
     const user = await verifyApiAuth(req);
+    requirePermission(user, 'retention:campaigns:edit');
     const { id } = await context.params;
     const body = await req.json();
     const parsed = z.object({ action: z.enum(["launch", "pause"]) }).safeParse(body);

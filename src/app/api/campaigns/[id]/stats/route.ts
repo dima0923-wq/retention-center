@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { CampaignService } from "@/services/campaign.service";
-import { verifyApiAuth, authErrorResponse, AuthError } from "@/lib/api-auth";
+import { verifyApiAuth, authErrorResponse, AuthError , requirePermission } from "@/lib/api-auth";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
 export async function GET(_req: NextRequest, context: RouteContext) {
   try {
     const user = await verifyApiAuth(_req);
+    requirePermission(user, 'retention:campaigns:view');
     const { id } = await context.params;
     const stats = await CampaignService.getStats(id);
     if (!stats) {

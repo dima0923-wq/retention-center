@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
 import { createSmsProvider } from "@/services/channel/sms.service";
-import { verifyApiAuth, AuthError, authErrorResponse } from "@/lib/api-auth";
+import { verifyApiAuth, AuthError, authErrorResponse , requirePermission } from "@/lib/api-auth";
 
 const smsSchema = z.object({
   to: z.string().regex(/^\+[1-9]\d{1,14}$/, "Phone must be in E.164 format"),
@@ -12,7 +12,8 @@ const smsSchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
-    await verifyApiAuth(req);
+    const user = await verifyApiAuth(req);
+    requirePermission(user, 'retention:templates:manage');
     const rawBody = await req.json();
     const parsed = smsSchema.safeParse(rawBody);
     if (!parsed.success) {

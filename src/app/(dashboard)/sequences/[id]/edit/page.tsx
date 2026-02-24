@@ -15,22 +15,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ChannelSelector } from "@/components/campaigns/ChannelSelector";
-import { StepEditor } from "@/components/sequences/StepEditor";
+import { StepEditor, type StepData, type VapiConfig } from "@/components/sequences/StepEditor";
 import { ArrowLeft, Plus, Save } from "lucide-react";
 import { toast } from "sonner";
 
 type Script = { id: string; name: string; type: string };
-
-type StepData = {
-  id?: string;
-  tempId: string;
-  stepOrder: number;
-  channel: string;
-  scriptId: string;
-  delayValue: number;
-  delayUnit: string;
-  isActive: boolean;
-};
 
 const TRIGGER_TYPES = [
   { value: "manual", label: "Manual enrollment" },
@@ -73,16 +62,24 @@ export default function EditSequencePage() {
         setChannels([]);
       }
       setSteps(
-        (seq.steps || []).map((s: any) => ({
-          id: s.id,
-          tempId: s.id,
-          stepOrder: s.stepOrder,
-          channel: s.channel,
-          scriptId: s.scriptId || "",
-          delayValue: s.delayValue,
-          delayUnit: s.delayUnit,
-          isActive: s.isActive,
-        }))
+        (seq.steps || []).map((s: any) => {
+          let vapiConfig: VapiConfig | undefined;
+          try {
+            const cond = typeof s.conditions === "string" ? JSON.parse(s.conditions) : (s.conditions ?? {});
+            if (cond.vapiConfig) vapiConfig = cond.vapiConfig;
+          } catch {}
+          return {
+            id: s.id,
+            tempId: s.id,
+            stepOrder: s.stepOrder,
+            channel: s.channel,
+            scriptId: s.scriptId || "",
+            delayValue: s.delayValue,
+            delayUnit: s.delayUnit,
+            isActive: s.isActive,
+            vapiConfig,
+          };
+        })
       );
       setScripts(Array.isArray(scriptData) ? scriptData : []);
     } catch {
@@ -143,6 +140,9 @@ export default function EditSequencePage() {
           delayValue: s.delayValue,
           delayUnit: s.delayUnit,
           isActive: s.isActive,
+          conditions: s.channel === "CALL" && s.vapiConfig
+            ? { vapiConfig: s.vapiConfig }
+            : undefined,
         })),
       };
 

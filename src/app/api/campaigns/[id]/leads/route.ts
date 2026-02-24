@@ -2,13 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { CampaignService } from "@/services/campaign.service";
 import { campaignLeadsSchema } from "@/lib/validators";
 import { prisma } from "@/lib/db";
-import { verifyApiAuth, authErrorResponse, AuthError } from "@/lib/api-auth";
+import { verifyApiAuth, authErrorResponse, AuthError , requirePermission } from "@/lib/api-auth";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
 export async function GET(req: NextRequest, context: RouteContext) {
   try {
     const user = await verifyApiAuth(req);
+    requirePermission(user, 'retention:campaigns:view');
     const { id } = await context.params;
     const page = Math.max(1, Math.floor(Number(req.nextUrl.searchParams.get("page")) || 1));
     const pageSize = Math.min(100, Math.max(1, Math.floor(Number(req.nextUrl.searchParams.get("pageSize")) || 20)));
@@ -24,6 +25,7 @@ export async function GET(req: NextRequest, context: RouteContext) {
 export async function POST(req: NextRequest, context: RouteContext) {
   try {
     const user = await verifyApiAuth(req);
+    requirePermission(user, 'retention:campaigns:edit');
     const { id } = await context.params;
     const body = await req.json();
 
@@ -58,6 +60,7 @@ export async function POST(req: NextRequest, context: RouteContext) {
 export async function DELETE(req: NextRequest, context: RouteContext) {
   try {
     const user = await verifyApiAuth(req);
+    requirePermission(user, 'retention:campaigns:edit');
     const { id } = await context.params;
     const body = await req.json();
     const parsed = campaignLeadsSchema.safeParse(body);

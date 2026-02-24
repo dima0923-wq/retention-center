@@ -3,13 +3,14 @@ import { VapiService } from "@/services/channel/vapi.service";
 import { SmsService } from "@/services/channel/sms.service";
 import { EmailService } from "@/services/channel/email.service";
 import { PostmarkService } from "@/services/channel/postmark.service";
-import { verifyApiAuth, AuthError, authErrorResponse } from "@/lib/api-auth";
+import { verifyApiAuth, AuthError, authErrorResponse , requirePermission } from "@/lib/api-auth";
 
 type Params = { params: Promise<{ provider: string }> };
 
 export async function POST(req: NextRequest, { params }: Params) {
   try {
-    await verifyApiAuth(req);
+    const user = await verifyApiAuth(req);
+    requirePermission(user, 'retention:templates:manage');
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

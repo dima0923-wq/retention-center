@@ -5,6 +5,7 @@ import { SmsIntegrationCard } from "@/components/integrations/SmsIntegrationCard
 import { InstantlyIntegrationCard } from "@/components/integrations/InstantlyIntegrationCard";
 import { PostmarkIntegrationCard } from "@/components/integrations/PostmarkIntegrationCard";
 import { KeitaroIntegrationCard } from "@/components/integrations/KeitaroIntegrationCard";
+import { MetaCapiIntegrationCard } from "@/components/integrations/MetaCapiIntegrationCard";
 import { VapiIntegrationCard } from "@/components/integrations/VapiIntegrationCard";
 import { WebhookUrlDisplay } from "@/components/integrations/WebhookUrlDisplay";
 import { ZapierIntegrationCard } from "@/components/integrations/ZapierIntegrationCard";
@@ -44,6 +45,8 @@ export default function IntegrationsPage() {
         <PostmarkIntegrationCard />
 
         <KeitaroIntegrationCard />
+
+        <MetaCapiIntegrationCard />
 
         <ZapierIntegrationCard />
 

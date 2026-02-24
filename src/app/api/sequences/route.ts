@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { RetentionSequenceService } from "@/services/retention-sequence.service";
 import { sequenceCreateSchema, sequenceFiltersSchema } from "@/lib/validators";
-import { verifyApiAuth, AuthError, authErrorResponse } from "@/lib/api-auth";
+import { verifyApiAuth, AuthError, authErrorResponse , requirePermission } from "@/lib/api-auth";
 
 export async function GET(req: NextRequest) {
   try {
-    await verifyApiAuth(req);
+    const user = await verifyApiAuth(req);
+    requirePermission(user, 'retention:campaigns:view');
     const params = Object.fromEntries(req.nextUrl.searchParams);
     const parsed = sequenceFiltersSchema.safeParse(params);
     if (!parsed.success) {
@@ -22,7 +23,8 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    await verifyApiAuth(req);
+    const user = await verifyApiAuth(req);
+    requirePermission(user, 'retention:campaigns:create');
     const body = await req.json();
     const parsed = sequenceCreateSchema.safeParse(body);
     if (!parsed.success) {

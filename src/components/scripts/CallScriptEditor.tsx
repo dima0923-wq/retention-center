@@ -15,8 +15,9 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Code, Phone } from "lucide-react";
+import { Code, Phone, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
+import { useVapiResources, type VapiVoice } from "@/hooks/use-vapi-resources";
 
 type VapiConfig = {
   model?: string;
@@ -34,23 +35,12 @@ type Props = {
   onChange: (config: VapiConfig) => void;
 };
 
-type Assistant = { id: string; name: string };
-type PhoneNumber = { id: string; number: string; provider: string };
-type VoiceEntry = { id: string; name: string; provider: string };
-
 const MODELS = [
+  { value: "gpt-5", label: "GPT-5" },
+  { value: "gpt-4.1", label: "GPT-4.1" },
   { value: "gpt-4o", label: "GPT-4o" },
   { value: "gpt-4o-mini", label: "GPT-4o Mini" },
   { value: "claude-sonnet-4-20250514", label: "Claude Sonnet" },
-];
-
-const FALLBACK_VOICES: VoiceEntry[] = [
-  { id: "openai-alloy", name: "Alloy", provider: "openai" },
-  { id: "openai-echo", name: "Echo", provider: "openai" },
-  { id: "openai-fable", name: "Fable", provider: "openai" },
-  { id: "openai-onyx", name: "Onyx", provider: "openai" },
-  { id: "openai-nova", name: "Nova", provider: "openai" },
-  { id: "openai-shimmer", name: "Shimmer", provider: "openai" },
 ];
 
 export function CallScriptEditor({ config, onChange }: Props) {
@@ -58,9 +48,12 @@ export function CallScriptEditor({ config, onChange }: Props) {
   const [rawJson, setRawJson] = useState(JSON.stringify(config, null, 2));
   const [jsonError, setJsonError] = useState<string | null>(null);
 
-  const [assistants, setAssistants] = useState<Assistant[]>([]);
-  const [phoneNumbers, setPhoneNumbers] = useState<PhoneNumber[]>([]);
-  const [voices, setVoices] = useState<VoiceEntry[]>(FALLBACK_VOICES);
+  const { assistants, phoneNumbers, voices, loading: vapiLoading, error: vapiError, refresh: refreshVapi } = useVapiResources();
+  const [extraVoice, setExtraVoice] = useState<VapiVoice | null>(null);
+
+  const allVoices = extraVoice && !voices.some((v) => v.id === extraVoice.id)
+    ? [...voices, extraVoice]
+    : voices;
 
   const [testPhone, setTestPhone] = useState("");
   const [isCalling, setIsCalling] = useState(false);
@@ -69,25 +62,33 @@ export function CallScriptEditor({ config, onChange }: Props) {
     setRawJson(JSON.stringify(config, null, 2));
   }, [config]);
 
-  useEffect(() => {
-    fetch("/api/integrations/vapi/assistants")
-      .then((r) => r.json())
-      .then((data) => { if (Array.isArray(data)) setAssistants(data); })
-      .catch(() => {});
-
-    fetch("/api/integrations/vapi/phone-numbers")
-      .then((r) => r.json())
-      .then((data) => { if (Array.isArray(data)) setPhoneNumbers(data); })
-      .catch(() => {});
-
-    fetch("/api/integrations/vapi/voices")
-      .then((r) => r.json())
-      .then((data) => { if (Array.isArray(data) && data.length > 0) setVoices(data); })
-      .catch(() => {});
-  }, []);
-
   const updateField = (field: string, value: unknown) => {
     onChange({ ...config, [field]: value });
+  };
+
+  const handleAssistantChange = (v: string) => {
+    const id = v === "__default__" ? undefined : v;
+    const updated: VapiConfig = { ...config, assistantId: id };
+    if (id) {
+      const assistant = assistants.find((a) => a.id === id);
+      if (assistant) {
+        if (assistant.firstMessage) updated.firstMessage = assistant.firstMessage;
+        if (assistant.instructions) updated.instructions = assistant.instructions;
+        if (assistant.model) updated.model = assistant.model;
+        if (assistant.temperature != null) updated.temperature = assistant.temperature;
+        if (assistant.voiceId) {
+          updated.voice = assistant.voiceId;
+          if (!voices.some((voice) => voice.id === assistant.voiceId)) {
+            setExtraVoice({
+              id: assistant.voiceId,
+              name: `${assistant.voiceId} (${assistant.voiceProvider ?? "custom"})`,
+              provider: assistant.voiceProvider ?? "custom",
+            });
+          }
+        }
+      }
+    }
+    onChange(updated);
   };
 
   const handleRawJsonChange = (value: string) => {
@@ -131,7 +132,7 @@ export function CallScriptEditor({ config, onChange }: Props) {
   };
 
   // Group voices by provider for display
-  const voicesByProvider = voices.reduce<Record<string, VoiceEntry[]>>((acc, v) => {
+  const voicesByProvider = allVoices.reduce<Record<string, VapiVoice[]>>((acc, v) => {
     (acc[v.provider] ??= []).push(v);
     return acc;
   }, {});
@@ -174,19 +175,35 @@ export function CallScriptEditor({ config, onChange }: Props) {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm">VAPI Assistant Configuration</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm">VAPI Assistant Configuration</CardTitle>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2"
+              onClick={refreshVapi}
+              disabled={vapiLoading}
+            >
+              <RefreshCw className={`h-3 w-3 mr-1 ${vapiLoading ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
+          {vapiError && (
+            <p className="text-xs text-destructive">VAPI not configured. Set up your API key in Integrations first.</p>
+          )}
 
           {/* Assistant selector */}
           <div>
             <Label>Assistant</Label>
             <Select
               value={config.assistantId || "__default__"}
-              onValueChange={(v) => updateField("assistantId", v === "__default__" ? undefined : v)}
+              onValueChange={handleAssistantChange}
+              disabled={vapiLoading}
             >
               <SelectTrigger className="mt-1">
-                <SelectValue placeholder="Use default from integration" />
+                <SelectValue placeholder={vapiLoading ? "Loading assistants..." : "Use default from integration"} />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__default__">Use default from integration</SelectItem>
@@ -205,9 +222,10 @@ export function CallScriptEditor({ config, onChange }: Props) {
             <Select
               value={config.phoneNumberId || "__default__"}
               onValueChange={(v) => updateField("phoneNumberId", v === "__default__" ? undefined : v)}
+              disabled={vapiLoading}
             >
               <SelectTrigger className="mt-1">
-                <SelectValue placeholder="Use default from integration" />
+                <SelectValue placeholder={vapiLoading ? "Loading phone numbers..." : "Use default from integration"} />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__default__">Use default from integration</SelectItem>
@@ -249,9 +267,10 @@ export function CallScriptEditor({ config, onChange }: Props) {
             <Select
               value={config.voice || undefined}
               onValueChange={(v) => updateField("voice", v)}
+              disabled={vapiLoading}
             >
               <SelectTrigger className="mt-1">
-                <SelectValue placeholder="Select voice" />
+                <SelectValue placeholder={vapiLoading ? "Loading voices..." : "Select voice"} />
               </SelectTrigger>
               <SelectContent>
                 {Object.entries(voicesByProvider).map(([provider, providerVoices]) => (

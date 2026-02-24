@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { RetentionSequenceService } from "@/services/retention-sequence.service";
 import { sequenceUpdateSchema } from "@/lib/validators";
-import { verifyApiAuth, AuthError, authErrorResponse } from "@/lib/api-auth";
+import { verifyApiAuth, AuthError, authErrorResponse , requirePermission } from "@/lib/api-auth";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
 export async function GET(req: NextRequest, context: RouteContext) {
   try {
-    await verifyApiAuth(req);
+    const user = await verifyApiAuth(req);
+    requirePermission(user, 'retention:campaigns:view');
     const { id } = await context.params;
     const sequence = await RetentionSequenceService.getById(id);
     if (!sequence) {
@@ -23,7 +24,8 @@ export async function GET(req: NextRequest, context: RouteContext) {
 
 export async function PUT(req: NextRequest, context: RouteContext) {
   try {
-    await verifyApiAuth(req);
+    const user = await verifyApiAuth(req);
+    requirePermission(user, 'retention:campaigns:edit');
     const { id } = await context.params;
     const body = await req.json();
     const parsed = sequenceUpdateSchema.safeParse(body);
@@ -46,7 +48,8 @@ export async function PUT(req: NextRequest, context: RouteContext) {
 
 export async function DELETE(req: NextRequest, context: RouteContext) {
   try {
-    await verifyApiAuth(req);
+    const user = await verifyApiAuth(req);
+    requirePermission(user, 'retention:campaigns:delete');
     const { id } = await context.params;
     const result = await RetentionSequenceService.delete(id);
     if (!result) {

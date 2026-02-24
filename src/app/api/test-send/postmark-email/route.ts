@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { PostmarkService } from "@/services/channel/postmark.service";
-import { verifyApiAuth, AuthError, authErrorResponse } from "@/lib/api-auth";
+import { verifyApiAuth, AuthError, authErrorResponse , requirePermission } from "@/lib/api-auth";
 
 const emailSchema = z.object({
   to: z.string().email("Valid email is required"),
@@ -13,7 +13,8 @@ const emailSchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
-    await verifyApiAuth(req);
+    const user = await verifyApiAuth(req);
+    requirePermission(user, 'retention:templates:manage');
     const rawBody = await req.json();
     const parsed = emailSchema.safeParse(rawBody);
     if (!parsed.success) {

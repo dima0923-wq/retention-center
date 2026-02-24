@@ -24,6 +24,7 @@ export const leadFiltersSchema = z.object({
   search: z.string().optional(),
   status: z.enum(["NEW", "CONTACTED", "IN_PROGRESS", "CONVERTED", "LOST", "DO_NOT_CONTACT"]).optional(),
   source: z.enum(["META", "MANUAL", "API"]).optional(),
+  scoreLabel: z.enum(["HOT", "WARM", "COLD", "DEAD", "NEW"]).optional(),
   dateFrom: z.string().optional(),
   dateTo: z.string().optional(),
   page: z.coerce.number().int().min(1).default(1),

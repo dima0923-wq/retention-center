@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, Send, Phone } from "lucide-react";
+import { Loader2, Send, Phone, RefreshCw } from "lucide-react";
 import {
   Tabs,
   TabsList,
@@ -28,13 +28,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { TemplateVariableInserter } from "@/components/scripts/TemplateVariableInserter";
+import { useVapiResources } from "@/hooks/use-vapi-resources";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Campaign = { id: string; name: string; status?: number };
-type VapiAssistant = { id: string; name: string };
-type VapiPhoneNumber = { id: string; number: string; name?: string };
-type VapiVoice = { id: string; name: string; provider?: string };
 
 // ─── Email Tab ────────────────────────────────────────────────────────────────
 
@@ -281,6 +279,8 @@ function SmsTab() {
 // ─── Call Tab ─────────────────────────────────────────────────────────────────
 
 const MODEL_OPTIONS = [
+  { value: "gpt-5", label: "GPT-5" },
+  { value: "gpt-4.1", label: "GPT-4.1" },
   { value: "gpt-4o", label: "GPT-4o" },
   { value: "gpt-4o-mini", label: "GPT-4o Mini" },
   { value: "claude-sonnet-4-6", label: "Claude Sonnet" },
@@ -297,36 +297,35 @@ function CallTab() {
   const [temperature, setTemperature] = useState(0.7);
   const [loading, setLoading] = useState(false);
 
-  const [assistants, setAssistants] = useState<VapiAssistant[]>([]);
-  const [phoneNumbers, setPhoneNumbers] = useState<VapiPhoneNumber[]>([]);
-  const [voices, setVoices] = useState<VapiVoice[]>([]);
-  const [vapiLoading, setVapiLoading] = useState(true);
+  const { assistants, phoneNumbers, voices, loading: vapiLoading, error: vapiError, refresh: refreshVapi } = useVapiResources();
+  const [extraVoice, setExtraVoice] = useState<{ id: string; name: string; provider: string } | null>(null);
 
-  useEffect(() => {
-    async function loadVapiData() {
-      setVapiLoading(true);
-      try {
-        const [aRes, pRes, vRes] = await Promise.all([
-          fetch("/api/integrations/vapi/assistants"),
-          fetch("/api/integrations/vapi/phone-numbers"),
-          fetch("/api/integrations/vapi/voices"),
-        ]);
-        const [aData, pData, vData] = await Promise.all([
-          aRes.json(),
-          pRes.json(),
-          vRes.json(),
-        ]);
-        if (Array.isArray(aData)) setAssistants(aData);
-        if (Array.isArray(pData)) setPhoneNumbers(pData);
-        if (Array.isArray(vData)) setVoices(vData);
-      } catch {
-        toast.error("Failed to load VAPI configuration");
-      } finally {
-        setVapiLoading(false);
+  // Merge extra voice (from assistant) into voice list if not already present
+  const allVoices = extraVoice && !voices.some((v) => v.id === extraVoice.id)
+    ? [...voices, extraVoice]
+    : voices;
+
+  function handleAssistantChange(id: string) {
+    setAssistantId(id);
+    if (id === "__none__") return;
+    const assistant = assistants.find((a) => a.id === id);
+    if (!assistant) return;
+    if (assistant.firstMessage) setFirstMessage(assistant.firstMessage);
+    if (assistant.instructions) setInstructions(assistant.instructions);
+    if (assistant.model) setModel(assistant.model);
+    if (assistant.temperature != null) setTemperature(assistant.temperature);
+    if (assistant.voiceId) {
+      setVoiceId(assistant.voiceId);
+      // Add to dropdown if not already there
+      if (!voices.some((v) => v.id === assistant.voiceId)) {
+        setExtraVoice({
+          id: assistant.voiceId,
+          name: `${assistant.voiceId} (${assistant.voiceProvider ?? "custom"})`,
+          provider: assistant.voiceProvider ?? "custom",
+        });
       }
     }
-    loadVapiData();
-  }, []);
+  }
 
   async function handleCall() {
     if (!to) {
@@ -362,10 +361,27 @@ function CallTab() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Make Test Call</CardTitle>
-        <CardDescription>Initiate a test outbound call via VAPI.</CardDescription>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="text-base">Make Test Call</CardTitle>
+            <CardDescription>Initiate a test outbound call via VAPI.</CardDescription>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2"
+            onClick={refreshVapi}
+            disabled={vapiLoading}
+          >
+            <RefreshCw className={`h-3 w-3 mr-1 ${vapiLoading ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        {vapiError && (
+          <p className="text-xs text-destructive">VAPI not configured. Set up your API key in Integrations first.</p>
+        )}
         <div className="space-y-1.5">
           <Label htmlFor="call-to">To (phone number)</Label>
           <Input
@@ -382,7 +398,7 @@ function CallTab() {
             <Label>Assistant</Label>
             <Select
               value={assistantId}
-              onValueChange={setAssistantId}
+              onValueChange={handleAssistantChange}
               disabled={vapiLoading}
             >
               <SelectTrigger className="w-full">
@@ -432,7 +448,7 @@ function CallTab() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__none__">Default voice</SelectItem>
-                {voices.map((v) => (
+                {allVoices.map((v) => (
                   <SelectItem key={v.id} value={v.id}>
                     {v.provider ? `${v.name} (${v.provider})` : v.name}
                   </SelectItem>

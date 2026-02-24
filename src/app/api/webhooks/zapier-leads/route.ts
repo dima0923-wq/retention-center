@@ -17,20 +17,18 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { full_name, email, phone_number, form_id, ad_id, adset_id, campaign_id } = body;
+    const { full_name, first_name, last_name, email, phone_number, form_id, ad_id, adset_id, campaign_id } = body;
 
-    // Validate required fields
-    if (!full_name) {
-      return NextResponse.json({ error: "full_name is required" }, { status: 400 });
+    // Parse name — all fields optional, use fallbacks
+    let firstName = "Unknown";
+    let lastName = "";
+    if (full_name) {
+      const nameParts = full_name.trim().split(/\s+/);
+      firstName = nameParts[0] || "Unknown";
+      lastName = nameParts.slice(1).join(" ") || "";
     }
-    if (!email && !phone_number) {
-      return NextResponse.json({ error: "email or phone_number is required" }, { status: 400 });
-    }
-
-    // Parse full_name into firstName + lastName
-    const nameParts = full_name.trim().split(/\s+/);
-    const firstName = nameParts[0] || "Unknown";
-    const lastName = nameParts.slice(1).join(" ") || "";
+    if (first_name) firstName = first_name;
+    if (last_name) lastName = last_name;
 
     // Look up Zapier config by Meta campaign_id
     let zapierConfig = null;

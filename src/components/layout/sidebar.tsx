@@ -17,6 +17,8 @@ import {
   Globe,
   GitBranch,
   LogOut,
+  Bot,
+  Phone,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
@@ -31,6 +33,7 @@ const navItems = [
   { label: "Email Templates", href: "/email-templates", icon: Mail },
   { label: "Integrations", href: "/integrations", icon: Plug },
   { label: "Send a test", href: "/test-send", icon: FlaskConical },
+  { label: "Calls", href: "/calls", icon: Phone },
   { label: "Conversions", href: "/conversions", icon: Target },
   { label: "Learning", href: "/learning", icon: GraduationCap },
   { label: "Reports", href: "/reports", icon: BarChart3 },
@@ -97,6 +100,13 @@ export function Sidebar() {
         >
           <Globe className="h-4 w-4 shrink-0" />
           <span className="truncate">Traffic Center</span>
+        </a>
+        <a
+          href="https://ag5.q37fh758g.click/"
+          className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground transition-colors"
+        >
+          <Bot className="h-4 w-4 shrink-0" />
+          <span className="truncate">Hermes</span>
         </a>
       </div>
 

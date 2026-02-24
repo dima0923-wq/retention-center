@@ -3,11 +3,12 @@ import { LeadService } from "@/services/lead.service";
 import { CampaignService } from "@/services/campaign.service";
 import { LeadRouterService } from "@/services/lead-router.service";
 import { leadBulkCreateSchema } from "@/lib/validators";
-import { verifyApiAuth, authErrorResponse, AuthError } from "@/lib/api-auth";
+import { verifyApiAuth, authErrorResponse, AuthError , requirePermission } from "@/lib/api-auth";
 
 export async function POST(request: NextRequest) {
   try {
     const user = await verifyApiAuth(request);
+    requirePermission(user, 'retention:contacts:manage');
     const body = await request.json();
     const { campaignId, ...bulkBody } = body;
     const parsed = leadBulkCreateSchema.safeParse(bulkBody);

@@ -13,16 +13,44 @@ type VapiCallResponse = {
   status: string;
 };
 
-type VapiWebhookData = {
+// Comprehensive VAPI webhook payload types
+type VapiCallData = {
+  id: string;
+  status: string;
+  duration?: number;
+  cost?: number;
+  transcript?: string;
+  recordingUrl?: string;
+  stereoRecordingUrl?: string;
+  endedReason?: string;
+  messages?: Array<{ role: string; content: string }>;
+  analysis?: {
+    summary?: string;
+    successEvaluation?: string;
+    structuredData?: Record<string, unknown>;
+  };
+  customer?: {
+    number?: string;
+    name?: string;
+  };
+};
+
+export type VapiWebhookPayload = {
   type: string;
-  call?: {
-    id: string;
-    status: string;
-    duration?: number;
-    cost?: number;
+  call?: VapiCallData;
+  timestamp?: string;
+  artifact?: {
+    recordingUrl?: string;
+    stereoRecordingUrl?: string;
     transcript?: string;
     messages?: Array<{ role: string; content: string }>;
   };
+  // speech-update fields
+  role?: string;
+  status?: string; // "started" | "stopped"
+  // transcript fields
+  transcriptType?: string; // "partial" | "final"
+  transcript?: string;
 };
 
 async function getConfig(): Promise<VapiConfig | null> {
@@ -162,20 +190,89 @@ export class VapiService {
     };
   }
 
+  /**
+   * Fetch call recording URL from VAPI API for a given call.
+   */
+  static async getCallRecording(
+    providerRef: string
+  ): Promise<{ recordingUrl: string | null; stereoRecordingUrl: string | null } | { error: string }> {
+    const config = await getConfig();
+    if (!config) return { error: "VAPI integration not configured or inactive" };
+
+    const baseUrl = config.baseUrl || "https://api.vapi.ai";
+
+    const res = await fetch(`${baseUrl}/call/${providerRef}`, {
+      headers: { Authorization: `Bearer ${config.apiKey}` },
+    });
+
+    if (!res.ok) {
+      return { error: `VAPI API error ${res.status}` };
+    }
+
+    const data = (await res.json()) as {
+      recordingUrl?: string;
+      stereoRecordingUrl?: string;
+    };
+
+    return {
+      recordingUrl: data.recordingUrl ?? null,
+      stereoRecordingUrl: data.stereoRecordingUrl ?? null,
+    };
+  }
+
   static extractKeywords(transcript: string): string[] {
     const KEYWORDS = [
-      "interested", "not interested", "callback", "call back",
-      "busy", "wrong number", "voicemail", "appointment",
-      "schedule", "price", "cost", "buy", "purchase",
-      "yes", "no", "maybe", "think about it",
-      "cancel", "refund", "complaint", "manager",
-      "email", "send info", "more information",
+      // Positive intent
+      "interested", "yes", "sure", "absolutely", "definitely",
+      "buy", "purchase", "sign up", "sign me up", "deal",
+      "appointment", "schedule", "book", "meeting",
+      "agree", "sounds good", "let's do it", "go ahead",
+      // Negative intent
+      "not interested", "no thanks", "no thank you", "don't call",
+      "remove me", "stop calling", "do not call", "unsubscribe",
+      "cancel", "refund", "complaint",
+      // Neutral / deferral
+      "callback", "call back", "call me back", "later",
+      "busy", "bad time", "not now", "think about it", "maybe",
+      "send info", "send information", "more information", "email me",
+      "send email", "send details",
+      // Objections
+      "too expensive", "price", "cost", "discount", "cheaper",
+      "already have", "not needed", "don't need",
+      // Disposition
+      "wrong number", "voicemail", "no answer", "hung up",
+      "manager", "supervisor", "speak to someone",
+      // Positive outcome
+      "deposit", "payment", "credit card", "pay now",
+      "thank you", "thanks",
     ];
     const lower = transcript.toLowerCase();
     return KEYWORDS.filter((kw) => lower.includes(kw));
   }
 
-  static async handleCallback(data: VapiWebhookData) {
+  /**
+   * Classify call outcome based on extracted keywords.
+   */
+  static classifyOutcome(keywords: string[]): string {
+    const set = new Set(keywords);
+    if (set.has("deposit") || set.has("payment") || set.has("credit card") || set.has("pay now")) {
+      return "converted";
+    }
+    if (set.has("interested") || set.has("yes") || set.has("absolutely") || set.has("sign up") || set.has("appointment") || set.has("book")) {
+      return "interested";
+    }
+    if (set.has("callback") || set.has("call back") || set.has("call me back") || set.has("think about it") || set.has("maybe") || set.has("send info")) {
+      return "callback";
+    }
+    if (set.has("not interested") || set.has("no thanks") || set.has("don't call") || set.has("remove me") || set.has("stop calling")) {
+      return "not_interested";
+    }
+    if (set.has("wrong number")) return "wrong_number";
+    if (set.has("voicemail")) return "voicemail";
+    return "unknown";
+  }
+
+  static async handleCallback(data: VapiWebhookPayload) {
     if (!data.call?.id) return;
 
     const attempt = await prisma.contactAttempt.findFirst({
@@ -198,20 +295,38 @@ export class VapiService {
         status: data.call.status,
         duration: data.call.duration,
         cost: data.call.cost,
+        endedReason: data.call.endedReason ?? null,
       };
 
-      if (data.call.transcript) {
-        resultObj.transcript = data.call.transcript;
-        resultObj.keywords = this.extractKeywords(data.call.transcript);
+      // Store recording URLs
+      const recordingUrl = data.call.recordingUrl ?? data.artifact?.recordingUrl ?? null;
+      const stereoRecordingUrl = data.call.stereoRecordingUrl ?? data.artifact?.stereoRecordingUrl ?? null;
+      if (recordingUrl) resultObj.recordingUrl = recordingUrl;
+      if (stereoRecordingUrl) resultObj.stereoRecordingUrl = stereoRecordingUrl;
+
+      // Store analysis if provided
+      if (data.call.analysis) {
+        resultObj.analysis = data.call.analysis;
       }
 
-      if (data.call.messages) {
-        resultObj.messages = data.call.messages;
-        if (!resultObj.transcript) {
-          const fullText = data.call.messages
-            .map((m) => m.content)
-            .join(" ");
-          resultObj.keywords = this.extractKeywords(fullText);
+      // Use transcript from call data or artifact
+      const transcript = data.call.transcript ?? data.artifact?.transcript ?? null;
+      const messages = data.call.messages ?? data.artifact?.messages ?? null;
+
+      if (transcript) {
+        resultObj.transcript = transcript;
+        const keywords = this.extractKeywords(transcript);
+        resultObj.keywords = keywords;
+        resultObj.outcome = this.classifyOutcome(keywords);
+      }
+
+      if (messages) {
+        resultObj.messages = messages;
+        if (!transcript) {
+          const fullText = messages.map((m) => m.content).join(" ");
+          const keywords = this.extractKeywords(fullText);
+          resultObj.keywords = keywords;
+          resultObj.outcome = this.classifyOutcome(keywords);
         }
       }
 
@@ -224,13 +339,17 @@ export class VapiService {
         ...existingResult,
         callId: data.call.id,
         status: data.call.status,
+        endedReason: data.call.endedReason ?? null,
         transcript: data.call.transcript ?? null,
       };
       if (data.call.status === "no-answer") {
         resultObj.reason = "no_answer";
       }
+      if (data.call.status === "failed") {
+        resultObj.reason = data.call.endedReason ?? "unknown";
+      }
       updateData.result = JSON.stringify(resultObj);
-    } else if (data.call.status === "in-progress") {
+    } else if (data.call.status === "in-progress" || data.call.status === "ringing") {
       updateData.status = "IN_PROGRESS";
     }
 

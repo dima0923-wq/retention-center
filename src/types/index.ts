@@ -9,6 +9,7 @@ export type LeadFilters = {
   search?: string;
   status?: string;
   source?: string;
+  scoreLabel?: string;
   dateFrom?: string;
   dateTo?: string;
 };

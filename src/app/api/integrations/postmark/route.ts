@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { verifyApiAuth, AuthError, authErrorResponse } from "@/lib/api-auth";
+import { verifyApiAuth, AuthError, authErrorResponse , requirePermission } from "@/lib/api-auth";
 
 const SENSITIVE_KEYS = ["serverToken"];
 const SENSITIVE_PLACEHOLDER = "***";
@@ -17,7 +17,8 @@ function redactSensitiveFields(config: Record<string, unknown>) {
 
 export async function GET(req: NextRequest) {
   try {
-    await verifyApiAuth(req);
+    const user = await verifyApiAuth(req);
+    requirePermission(user, 'retention:templates:manage');
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

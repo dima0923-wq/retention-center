@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { LeadService } from "@/services/lead.service";
 import { leadUpdateSchema } from "@/lib/validators";
-import { verifyApiAuth, authErrorResponse, AuthError } from "@/lib/api-auth";
+import { verifyApiAuth, authErrorResponse, AuthError , requirePermission } from "@/lib/api-auth";
 
 export async function GET(
   _request: NextRequest,
@@ -9,6 +9,7 @@ export async function GET(
 ) {
   try {
     const user = await verifyApiAuth(_request);
+    requirePermission(user, 'retention:contacts:view');
     const { id } = await params;
     const lead = await LeadService.getById(id);
 
@@ -30,6 +31,7 @@ export async function PATCH(
 ) {
   try {
     const user = await verifyApiAuth(request);
+    requirePermission(user, 'retention:contacts:manage');
     const { id } = await params;
     const body = await request.json();
     const parsed = leadUpdateSchema.safeParse(body);
@@ -64,6 +66,7 @@ export async function DELETE(
 ) {
   try {
     const user = await verifyApiAuth(_request);
+    requirePermission(user, 'retention:contacts:manage');
     const { id } = await params;
     const lead = await LeadService.softDelete(id);
     return NextResponse.json(lead);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -20,13 +20,12 @@ import {
 } from "@/components/ui/select";
 import { ChannelSelector } from "./ChannelSelector";
 import { campaignCreateSchema } from "@/lib/validators";
-import { Plus, Trash2, Mail, Clock, Zap, Phone } from "lucide-react";
-
-type VapiAssistant = { id: string; name: string };
-type VapiPhoneNumber = { id: string; number: string; name?: string };
-type VapiVoice = { id: string; name: string; provider: string };
+import { Plus, Trash2, Mail, Clock, Zap, Phone, RefreshCw } from "lucide-react";
+import { useVapiResources, type VapiVoice } from "@/hooks/use-vapi-resources";
 
 const VAPI_MODELS = [
+  { value: "gpt-5", label: "GPT-5" },
+  { value: "gpt-4.1", label: "GPT-4.1" },
   { value: "gpt-4o", label: "GPT-4o" },
   { value: "gpt-4o-mini", label: "GPT-4o Mini" },
   { value: "claude-sonnet-4-6", label: "Claude Sonnet" },
@@ -115,27 +114,20 @@ export function CampaignForm({
     if (raw && typeof raw === "object") return raw as VapiConfig;
     return {};
   });
-  const [vapiAssistants, setVapiAssistants] = useState<VapiAssistant[]>([]);
-  const [vapiPhoneNumbers, setVapiPhoneNumbers] = useState<VapiPhoneNumber[]>([]);
-  const [vapiVoices, setVapiVoices] = useState<VapiVoice[]>([]);
 
-  useEffect(() => {
-    if (!hasCall) return;
-    const controller = new AbortController();
-    fetch("/api/integrations/vapi/assistants", { signal: controller.signal })
-      .then((r) => r.ok ? r.json() : [])
-      .then((d) => setVapiAssistants(Array.isArray(d) ? d : []))
-      .catch(() => {});
-    fetch("/api/integrations/vapi/phone-numbers", { signal: controller.signal })
-      .then((r) => r.ok ? r.json() : [])
-      .then((d) => setVapiPhoneNumbers(Array.isArray(d) ? d : []))
-      .catch(() => {});
-    fetch("/api/integrations/vapi/voices", { signal: controller.signal })
-      .then((r) => r.ok ? r.json() : [])
-      .then((d) => setVapiVoices(Array.isArray(d) ? d : []))
-      .catch(() => {});
-    return () => controller.abort();
-  }, [hasCall]);
+  const {
+    assistants: vapiAssistants,
+    phoneNumbers: vapiPhoneNumbers,
+    voices: vapiVoices,
+    loading: vapiLoading,
+    error: vapiError,
+    refresh: refreshVapi,
+  } = useVapiResources({ enabled: hasCall });
+  const [extraVoice, setExtraVoice] = useState<VapiVoice | null>(null);
+
+  const allVapiVoices = extraVoice && !vapiVoices.some((v) => v.id === extraVoice.id)
+    ? [...vapiVoices, extraVoice]
+    : vapiVoices;
 
   const updateVapiConfig = (patch: Partial<VapiConfig>) => {
     setVapiConfig((prev) => {
@@ -145,8 +137,33 @@ export function CampaignForm({
     });
   };
 
+  const handleVapiAssistantChange = (v: string) => {
+    const id = v === "__default__" ? undefined : v;
+    const patch: Partial<VapiConfig> = { assistantId: id };
+    if (id) {
+      const assistant = vapiAssistants.find((a) => a.id === id);
+      if (assistant) {
+        if (assistant.firstMessage) patch.firstMessage = assistant.firstMessage;
+        if (assistant.instructions) patch.instructions = assistant.instructions;
+        if (assistant.model) patch.model = assistant.model;
+        if (assistant.temperature != null) patch.temperature = assistant.temperature;
+        if (assistant.voiceId) {
+          patch.voice = assistant.voiceId;
+          if (!vapiVoices.some((v) => v.id === assistant.voiceId)) {
+            setExtraVoice({
+              id: assistant.voiceId,
+              name: `${assistant.voiceId} (${assistant.voiceProvider ?? "custom"})`,
+              provider: assistant.voiceProvider ?? "custom",
+            });
+          }
+        }
+      }
+    }
+    updateVapiConfig(patch);
+  };
+
   // Group voices by provider
-  const voicesByProvider = vapiVoices.reduce<Record<string, VapiVoice[]>>((acc, v) => {
+  const voicesByProvider = allVapiVoices.reduce<Record<string, VapiVoice[]>>((acc, v) => {
     (acc[v.provider] = acc[v.provider] ?? []).push(v);
     return acc;
   }, {});
@@ -461,12 +478,28 @@ export function CampaignForm({
       {channels.includes("CALL") && (
         <Card>
           <CardHeader className="pb-3">
-            <div className="flex items-center gap-2">
-              <Phone className="h-4 w-4" />
-              <CardTitle className="text-base">Voice (VAPI) Settings</CardTitle>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Phone className="h-4 w-4" />
+                <CardTitle className="text-base">Voice (VAPI) Settings</CardTitle>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2"
+                onClick={refreshVapi}
+                disabled={vapiLoading}
+              >
+                <RefreshCw className={`h-3 w-3 mr-1 ${vapiLoading ? "animate-spin" : ""}`} />
+                Refresh
+              </Button>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
+            {vapiError && (
+              <p className="text-xs text-destructive">VAPI not configured. Set up your API key in Integrations first.</p>
+            )}
             <p className="text-xs text-muted-foreground">
               Override VAPI defaults for this campaign. Leave blank to use integration defaults.
             </p>
@@ -476,7 +509,7 @@ export function CampaignForm({
                 <Label>Assistant</Label>
                 <Select
                   value={vapiConfig.assistantId ?? "__default__"}
-                  onValueChange={(v) => updateVapiConfig({ assistantId: v === "__default__" ? undefined : v })}
+                  onValueChange={handleVapiAssistantChange}
                 >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Use integration default" />

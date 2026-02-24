@@ -17,9 +17,12 @@ model Lead {
   source      String   @default("MANUAL")
   status      String   @default("NEW")
   meta        String?
-  notes       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  notes          String?
+  score          Int       @default(0)
+  scoreLabel     String    @default("NEW") // NEW | HOT | WARM | COLD | DEAD
+  scoreUpdatedAt DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   campaignLeads        CampaignLead[]
   contactAttempts      ContactAttempt[]
@@ -29,6 +32,8 @@ model Lead {
   @@index([email])
   @@index([phone])
   @@index([status])
+  @@index([score])
+  @@index([scoreLabel])
 }
 
 model Campaign {

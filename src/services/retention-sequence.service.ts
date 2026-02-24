@@ -460,6 +460,17 @@ export class RetentionSequenceService {
       return { success: true };
     }
 
+    // Parse step conditions for VAPI config
+    let campaignMeta: string | null = null;
+    if (step.channel === "CALL") {
+      try {
+        const conditions = JSON.parse(step.conditions);
+        if (conditions.vapiConfig) {
+          campaignMeta = JSON.stringify({ vapiConfig: conditions.vapiConfig });
+        }
+      } catch {}
+    }
+
     // Send message through the channel router
     // We create a synthetic campaign object for the router
     const routeResult = await ChannelRouterService.routeContact(
@@ -470,7 +481,7 @@ export class RetentionSequenceService {
         description: null,
         status: "ACTIVE",
         channels: JSON.stringify([step.channel]),
-        meta: null,
+        meta: campaignMeta,
         startDate: null,
         endDate: null,
         createdAt: new Date(),

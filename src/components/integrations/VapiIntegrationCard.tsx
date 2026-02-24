@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -19,22 +19,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Phone, Loader2 } from "lucide-react";
+import { Phone, Loader2, RefreshCw } from "lucide-react";
 import { ConnectionStatus } from "./ConnectionStatus";
 import { TestConnectionButton } from "./TestConnectionButton";
 import { WebhookUrlDisplay } from "./WebhookUrlDisplay";
+import { useVapiResources } from "@/hooks/use-vapi-resources";
 import { toast } from "sonner";
-
-type Assistant = {
-  id: string;
-  name: string;
-};
-
-type PhoneNumber = {
-  id: string;
-  number: string;
-  provider?: string;
-};
 
 export function VapiIntegrationCard() {
   const [config, setConfig] = useState<Record<string, string>>({});
@@ -43,40 +33,15 @@ export function VapiIntegrationCard() {
   const [saving, setSaving] = useState(false);
   const [connectionOk, setConnectionOk] = useState<boolean | null>(null);
 
-  // Dropdown data
-  const [assistants, setAssistants] = useState<Assistant[]>([]);
-  const [phoneNumbers, setPhoneNumbers] = useState<PhoneNumber[]>([]);
-  const [loadingAssistants, setLoadingAssistants] = useState(false);
-  const [loadingPhoneNumbers, setLoadingPhoneNumbers] = useState(false);
+  const { assistants, phoneNumbers, loading: vapiLoading, error: vapiError, refresh: refreshVapi } = useVapiResources({
+    enabled: isActive,
+    include: ["assistants", "phoneNumbers"],
+  });
 
   const baseUrl =
     typeof window !== "undefined"
       ? window.location.origin
       : process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-
-  const fetchDropdowns = useCallback(async () => {
-    setLoadingAssistants(true);
-    setLoadingPhoneNumbers(true);
-    try {
-      const [aRes, pRes] = await Promise.all([
-        fetch("/api/integrations/vapi/assistants"),
-        fetch("/api/integrations/vapi/phone-numbers"),
-      ]);
-      if (aRes.ok) {
-        const data = await aRes.json();
-        setAssistants(Array.isArray(data) ? data : (data.assistants ?? []));
-      }
-      if (pRes.ok) {
-        const data = await pRes.json();
-        setPhoneNumbers(Array.isArray(data) ? data : (data.phoneNumbers ?? []));
-      }
-    } catch {
-      // Supplementary — fail silently
-    } finally {
-      setLoadingAssistants(false);
-      setLoadingPhoneNumbers(false);
-    }
-  }, []);
 
   useEffect(() => {
     fetch("/api/integrations/vapi")
@@ -99,12 +64,6 @@ export function VapiIntegrationCard() {
       .finally(() => setLoading(false));
   }, []);
 
-  useEffect(() => {
-    if (isActive) {
-      fetchDropdowns();
-    }
-  }, [isActive, fetchDropdowns]);
-
   const updateField = (key: string, value: string) => {
     setConfig((prev) => ({ ...prev, [key]: value }));
   };
@@ -125,7 +84,7 @@ export function VapiIntegrationCard() {
       if (res.ok) {
         setIsActive(true);
         toast.success("VAPI configuration saved");
-        fetchDropdowns();
+        refreshVapi();
       } else {
         const err = await res.json();
         toast.error(err.error ?? "Failed to save");
@@ -142,8 +101,6 @@ export function VapiIntegrationCard() {
     if (res.ok) {
       setIsActive(false);
       setConnectionOk(null);
-      setAssistants([]);
-      setPhoneNumbers([]);
       toast.success("VAPI deactivated");
     }
   };
@@ -186,16 +143,34 @@ export function VapiIntegrationCard() {
           />
         </div>
 
+        {/* VAPI Resources Error */}
+        {isActive && vapiError && (
+          <p className="text-xs text-destructive">{vapiError}</p>
+        )}
+
         {/* Default Assistant */}
         <div className="space-y-1.5">
-          <Label className="text-xs">Default Assistant</Label>
+          <div className="flex items-center justify-between">
+            <Label className="text-xs">Default Assistant</Label>
+            {isActive && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 w-6 p-0"
+                onClick={refreshVapi}
+                disabled={vapiLoading}
+              >
+                <RefreshCw className={`h-3 w-3 ${vapiLoading ? "animate-spin" : ""}`} />
+              </Button>
+            )}
+          </div>
           {isActive && assistants.length > 0 ? (
             <Select
               value={config.assistantId || undefined}
               onValueChange={(val) => updateField("assistantId", val)}
             >
               <SelectTrigger className="h-9 text-sm">
-                <SelectValue placeholder={loadingAssistants ? "Loading..." : "Select assistant"} />
+                <SelectValue placeholder={vapiLoading ? "Loading..." : "Select assistant"} />
               </SelectTrigger>
               <SelectContent>
                 {assistants.map((a) => (
@@ -210,7 +185,7 @@ export function VapiIntegrationCard() {
               id="vapi-assistantId"
               type="text"
               placeholder={
-                isActive && loadingAssistants
+                isActive && vapiLoading
                   ? "Loading assistants..."
                   : "Assistant ID (save API key first)"
               }
@@ -229,7 +204,7 @@ export function VapiIntegrationCard() {
               onValueChange={(val) => updateField("phoneNumberId", val)}
             >
               <SelectTrigger className="h-9 text-sm">
-                <SelectValue placeholder={loadingPhoneNumbers ? "Loading..." : "Select phone number"} />
+                <SelectValue placeholder={vapiLoading ? "Loading..." : "Select phone number"} />
               </SelectTrigger>
               <SelectContent>
                 {phoneNumbers.map((p) => (
@@ -249,7 +224,7 @@ export function VapiIntegrationCard() {
               id="vapi-phoneNumberId"
               type="text"
               placeholder={
-                isActive && loadingPhoneNumbers
+                isActive && vapiLoading
                   ? "Loading phone numbers..."
                   : "Phone Number ID (save API key first)"
               }

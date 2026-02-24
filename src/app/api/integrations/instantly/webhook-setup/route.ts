@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
-import { verifyApiAuth, AuthError, authErrorResponse } from "@/lib/api-auth";
+import { verifyApiAuth, AuthError, authErrorResponse , requirePermission } from "@/lib/api-auth";
 
 const webhookUrlSchema = z.object({ webhook_url: z.string().url() });
 
@@ -26,7 +26,8 @@ async function getInstantlyApiKey(): Promise<string | null> {
 
 export async function POST(req: NextRequest) {
   try {
-    await verifyApiAuth(req);
+    const user = await verifyApiAuth(req);
+    requirePermission(user, 'retention:templates:manage');
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

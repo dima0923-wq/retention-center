@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ZapierConfigService } from "@/services/zapier-config.service";
-import { verifyApiAuth, authErrorResponse, AuthError } from "@/lib/api-auth";
+import { verifyApiAuth, authErrorResponse, AuthError , requirePermission } from "@/lib/api-auth";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
 export async function GET(_req: NextRequest, context: RouteContext) {
   try {
     const user = await verifyApiAuth(_req);
+    requirePermission(user, 'retention:templates:manage');
     const { id } = await context.params;
     const config = await ZapierConfigService.findById(id);
     if (!config) {
@@ -23,6 +24,7 @@ export async function GET(_req: NextRequest, context: RouteContext) {
 export async function PUT(req: NextRequest, context: RouteContext) {
   try {
     const user = await verifyApiAuth(req);
+    requirePermission(user, 'retention:templates:manage');
     const { id } = await context.params;
     const body = await req.json();
     const config = await ZapierConfigService.update(id, body);
@@ -44,6 +46,7 @@ export async function PUT(req: NextRequest, context: RouteContext) {
 export async function DELETE(_req: NextRequest, context: RouteContext) {
   try {
     const user = await verifyApiAuth(_req);
+    requirePermission(user, 'retention:templates:manage');
     const { id } = await context.params;
     const result = await ZapierConfigService.delete(id);
     if (!result) {

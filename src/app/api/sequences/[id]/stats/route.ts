@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { RetentionSequenceService } from "@/services/retention-sequence.service";
-import { verifyApiAuth, AuthError, authErrorResponse } from "@/lib/api-auth";
+import { verifyApiAuth, AuthError, authErrorResponse , requirePermission } from "@/lib/api-auth";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
 export async function GET(req: NextRequest, context: RouteContext) {
   try {
-    await verifyApiAuth(req);
+    const user = await verifyApiAuth(req);
+    requirePermission(user, 'retention:analytics:view');
     const { id } = await context.params;
     const stats = await RetentionSequenceService.getSequenceStats(id);
     if (!stats) {

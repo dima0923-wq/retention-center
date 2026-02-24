@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { LearningService } from "@/services/learning.service";
-import { verifyApiAuth, authErrorResponse, AuthError } from "@/lib/api-auth";
+import { verifyApiAuth, authErrorResponse, AuthError , requirePermission } from "@/lib/api-auth";
 
 export async function GET(req: NextRequest) {
   try {
     const user = await verifyApiAuth(req);
+    requirePermission(user, 'retention:analytics:view');
     const url = req.nextUrl;
     const channel = url.searchParams.get("channel") || "SMS";
     const limit = Math.min(Number(url.searchParams.get("limit")) || 20, 100);

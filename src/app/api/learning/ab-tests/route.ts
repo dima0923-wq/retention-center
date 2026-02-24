@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { ABTestService } from "@/services/ab-test.service";
 import { z } from "zod";
-import { verifyApiAuth, authErrorResponse, AuthError } from "@/lib/api-auth";
+import { verifyApiAuth, authErrorResponse, AuthError , requirePermission } from "@/lib/api-auth";
 
 const abTestCreateSchema = z.object({
   campaignId: z.string().min(1, "Campaign ID is required"),
@@ -14,6 +14,7 @@ const abTestCreateSchema = z.object({
 export async function GET(req: NextRequest) {
   try {
     const user = await verifyApiAuth(req);
+    requirePermission(user, 'retention:analytics:view');
     const url = req.nextUrl;
     const campaignId = url.searchParams.get("campaignId") || undefined;
     const status = url.searchParams.get("status") || undefined;
@@ -46,6 +47,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await verifyApiAuth(req);
+    requirePermission(user, 'retention:campaigns:create');
     const body = await req.json();
     const parsed = abTestCreateSchema.safeParse(body);
     if (!parsed.success) {

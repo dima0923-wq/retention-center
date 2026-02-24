@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { LeadService } from "@/services/lead.service";
 import { LeadRouterService } from "@/services/lead-router.service";
 import { RetentionSequenceService } from "@/services/retention-sequence.service";
+import { MetaCapiService } from "@/services/meta-capi.service";
 
 function extractFieldData(fieldData: Array<{ name: string; values: string[] }> | undefined): Record<string, string> {
   const result: Record<string, string> = {};
@@ -79,6 +80,16 @@ export async function POST(req: NextRequest) {
           externalId: clickId ?? subId ?? leadData.leadgen_id ?? leadData.id ?? undefined,
           meta: { ...leadData, sub_id: subId, click_id: clickId },
         });
+
+        // Send Meta CAPI Lead event for new leads
+        if (!result.deduplicated) {
+          MetaCapiService.sendLeadEvent(result.lead, {
+            fbc: fields.fbc ?? leadData.fbc,
+            fbp: fields.fbp ?? leadData.fbp,
+          }).catch((err) => {
+            console.error("Meta CAPI lead event failed:", err);
+          });
+        }
 
         // Auto-assign to matching campaigns and sequences
         if (!result.deduplicated) {

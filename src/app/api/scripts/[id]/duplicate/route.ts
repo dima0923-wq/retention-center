@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ScriptService } from "@/services/script.service";
-import { verifyApiAuth, authErrorResponse, AuthError } from "@/lib/api-auth";
+import { verifyApiAuth, authErrorResponse, AuthError , requirePermission } from "@/lib/api-auth";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
 export async function POST(_req: NextRequest, context: RouteContext) {
   try {
     const user = await verifyApiAuth(_req);
+    requirePermission(user, 'retention:templates:manage');
     const { id } = await context.params;
     const script = await ScriptService.duplicate(id);
     if (!script) {
