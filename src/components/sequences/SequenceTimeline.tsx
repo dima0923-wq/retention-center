@@ -1,6 +1,6 @@
 "use client";
 
-import { Phone, MessageSquare, Mail, Clock, ArrowDown } from "lucide-react";
+import { Phone, MessageSquare, Mail, Bell, Clock, ArrowDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
@@ -8,6 +8,7 @@ const channelConfig: Record<string, { icon: typeof Phone; label: string; color: 
   CALL: { icon: Phone, label: "Call", color: "bg-orange-100 text-orange-700 border-orange-200" },
   SMS: { icon: MessageSquare, label: "SMS", color: "bg-blue-100 text-blue-700 border-blue-200" },
   EMAIL: { icon: Mail, label: "Email", color: "bg-green-100 text-green-700 border-green-200" },
+  PUSH: { icon: Bell, label: "Push", color: "bg-purple-100 text-purple-700 border-purple-200" },
 };
 
 const delayUnitLabels: Record<string, string> = {

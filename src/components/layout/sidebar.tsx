@@ -22,6 +22,7 @@ import {
   Headphones,
   MessageSquare,
   MailOpen,
+  Smartphone,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
@@ -35,8 +36,8 @@ const navItems = [
   { label: "Scripts", href: "/scripts", icon: FileText },
   { label: "Email Templates", href: "/email-templates", icon: Mail },
   { label: "Integrations", href: "/integrations", icon: Plug },
+  { label: "PWA", href: "/pwa", icon: Smartphone },
   { label: "Send a test", href: "/test-send", icon: FlaskConical },
-  { label: "Call History", href: "/calls", icon: Phone },
   { label: "VAPI Dashboard", href: "/vapi-calls", icon: Headphones },
   { label: "SMS Stats", href: "/sms-stats", icon: MessageSquare },
   { label: "Email Stats", href: "/email-stats", icon: MailOpen },

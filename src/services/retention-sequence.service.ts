@@ -459,6 +459,13 @@ export class RetentionSequenceService {
       await this.skipExecution(execution.id, enrollmentId, enrollment.sequence.steps, step.stepOrder);
       return { success: true };
     }
+    if (step.channel === "PUSH") {
+      const leadMeta = lead.meta ? (typeof lead.meta === "string" ? JSON.parse(lead.meta) : lead.meta) as Record<string, unknown> : {};
+      if (!leadMeta.pwaUserId) {
+        await this.skipExecution(execution.id, enrollmentId, enrollment.sequence.steps, step.stepOrder);
+        return { success: true };
+      }
+    }
 
     // Parse step conditions for channel-specific config
     let campaignMeta: string | null = null;

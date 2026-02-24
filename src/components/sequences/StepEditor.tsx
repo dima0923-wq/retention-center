@@ -16,6 +16,7 @@ import {
   Phone,
   MessageSquare,
   Mail,
+  Bell,
   Trash2,
   GripVertical,
   ChevronDown,
@@ -45,6 +46,7 @@ export type StepData = {
   delayUnit: string;
   isActive: boolean;
   vapiConfig?: VapiConfig;
+  emailTemplateId?: string;
 };
 
 type Script = {
@@ -75,6 +77,12 @@ type VapiVoice = {
   provider: string;
 };
 
+type EmailTemplate = {
+  id: string;
+  name: string;
+  subject: string;
+};
+
 type StepEditorProps = {
   step: StepData;
   index: number;
@@ -87,6 +95,7 @@ const CHANNELS = [
   { value: "EMAIL", label: "Email", icon: Mail },
   { value: "SMS", label: "SMS", icon: MessageSquare },
   { value: "CALL", label: "Call", icon: Phone },
+  { value: "PUSH", label: "Push", icon: Bell },
 ];
 
 const DELAY_UNITS = [
@@ -106,6 +115,7 @@ const VAPI_MODELS = [
 export function StepEditor({ step, index, scripts, onChange, onRemove }: StepEditorProps) {
   const filteredScripts = scripts.filter((s) => s.type === step.channel);
   const isCall = step.channel === "CALL";
+  const isEmail = step.channel === "EMAIL";
 
   const [showVapiConfig, setShowVapiConfig] = useState(false);
   const [assistants, setAssistants] = useState<VapiAssistant[]>([]);
@@ -113,6 +123,24 @@ export function StepEditor({ step, index, scripts, onChange, onRemove }: StepEdi
   const [voices, setVoices] = useState<VapiVoice[]>([]);
   const [loadingVapi, setLoadingVapi] = useState(false);
   const [vapiError, setVapiError] = useState<string | null>(null);
+
+  const [emailTemplates, setEmailTemplates] = useState<EmailTemplate[]>([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
+
+  // Fetch email templates when EMAIL channel is selected
+  useEffect(() => {
+    if (!isEmail) return;
+    if (emailTemplates.length > 0) return;
+
+    setLoadingTemplates(true);
+    fetch("/api/email-templates?isActive=true")
+      .then((r) => r.json())
+      .then((data) => {
+        setEmailTemplates(Array.isArray(data) ? data : []);
+      })
+      .catch(() => {})
+      .finally(() => setLoadingTemplates(false));
+  }, [isEmail, emailTemplates.length]);
 
   // Fetch VAPI resources when CALL channel is selected and config panel is opened
   useEffect(() => {
@@ -184,7 +212,7 @@ export function StepEditor({ step, index, scripts, onChange, onRemove }: StepEdi
           <Select
             value={step.channel}
             onValueChange={(val) =>
-              onChange({ ...step, channel: val, scriptId: "", vapiConfig: undefined })
+              onChange({ ...step, channel: val, scriptId: "", vapiConfig: undefined, emailTemplateId: undefined })
             }
           >
             <SelectTrigger>
@@ -228,6 +256,34 @@ export function StepEditor({ step, index, scripts, onChange, onRemove }: StepEdi
             </SelectContent>
           </Select>
         </div>
+
+        {/* Email Template (EMAIL channel only) */}
+        {isEmail && (
+          <div className="space-y-2">
+            <Label>Email Template</Label>
+            <Select
+              value={step.emailTemplateId ?? "_none"}
+              onValueChange={(val) =>
+                onChange({ ...step, emailTemplateId: val === "_none" ? undefined : val })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder={loadingTemplates ? "Loading..." : "Select template (optional)"} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="_none">None (use script content)</SelectItem>
+                {emailTemplates.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>
+                    {t.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              If selected, the email template overrides the script content for this step.
+            </p>
+          </div>
+        )}
 
         {/* Delay */}
         <div className="space-y-2">

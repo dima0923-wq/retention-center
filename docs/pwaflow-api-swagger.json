@@ -1,0 +1,4513 @@
+{
+    "openapi": "3.0.3",
+    "info": {
+        "title": "PWA Admin API",
+        "version": "v1",
+        "description": "API documentation for pwa-admin."
+    },
+    "servers": [
+        {
+            "url": "/",
+            "description": "API Server"
+        }
+    ],
+    "components": {
+        "securitySchemes": {
+            "bearerAuth": {
+                "type": "http",
+                "scheme": "bearer",
+                "bearerFormat": "InstantPushToken",
+                "description": "Use company instant_push_token as Bearer token"
+            }
+        },
+        "schemas": {
+            "PaginationMeta": {
+                "type": "object",
+                "required": [
+                    "page",
+                    "limit",
+                    "total"
+                ],
+                "properties": {
+                    "page": {
+                        "type": "integer"
+                    },
+                    "limit": {
+                        "type": "integer"
+                    },
+                    "total": {
+                        "type": "integer",
+                        "description": "Total pages"
+                    }
+                }
+            },
+            "ApiError": {
+                "type": "object",
+                "required": [
+                    "error"
+                ],
+                "properties": {
+                    "error": {
+                        "type": "string"
+                    },
+                    "message": {
+                        "oneOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                }
+                            }
+                        ]
+                    }
+                }
+            },
+            "ErrorResponse": {
+                "type": "object",
+                "required": [
+                    "result",
+                    "error"
+                ],
+                "properties": {
+                    "result": {
+                        "type": "string",
+                        "enum": [
+                            "error"
+                        ]
+                    },
+                    "error": {
+                        "$ref": "#/components/schemas/ApiError"
+                    }
+                }
+            },
+            "DeletedResponse": {
+                "type": "object",
+                "required": [
+                    "result",
+                    "data"
+                ],
+                "properties": {
+                    "result": {
+                        "type": "string",
+                        "enum": [
+                            "success"
+                        ]
+                    },
+                    "data": {
+                        "type": "object",
+                        "required": [
+                            "deleted"
+                        ],
+                        "properties": {
+                            "deleted": {
+                                "type": "boolean"
+                            }
+                        }
+                    }
+                }
+            },
+            "ArchivedResponse": {
+                "type": "object",
+                "required": [
+                    "result",
+                    "data"
+                ],
+                "properties": {
+                    "result": {
+                        "type": "string",
+                        "enum": [
+                            "success"
+                        ]
+                    },
+                    "data": {
+                        "type": "object",
+                        "required": [
+                            "archived"
+                        ],
+                        "properties": {
+                            "archived": {
+                                "type": "boolean"
+                            }
+                        }
+                    }
+                }
+            },
+            "DirectUploadPayload": {
+                "type": "object",
+                "required": [
+                    "signed_id",
+                    "key",
+                    "filename",
+                    "content_type",
+                    "byte_size",
+                    "direct_upload"
+                ],
+                "properties": {
+                    "signed_id": {
+                        "type": "string"
+                    },
+                    "key": {
+                        "type": "string"
+                    },
+                    "filename": {
+                        "type": "string"
+                    },
+                    "content_type": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "byte_size": {
+                        "type": "integer"
+                    },
+                    "direct_upload": {
+                        "type": "object",
+                        "required": [
+                            "url",
+                            "headers"
+                        ],
+                        "properties": {
+                            "url": {
+                                "type": "string"
+                            },
+                            "headers": {
+                                "type": "object",
+                                "additionalProperties": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "DirectUploadResponse": {
+                "type": "object",
+                "required": [
+                    "result",
+                    "data"
+                ],
+                "properties": {
+                    "result": {
+                        "type": "string",
+                        "enum": [
+                            "success"
+                        ]
+                    },
+                    "data": {
+                        "type": "object",
+                        "required": [
+                            "upload"
+                        ],
+                        "properties": {
+                            "upload": {
+                                "$ref": "#/components/schemas/DirectUploadPayload"
+                            }
+                        }
+                    }
+                }
+            },
+            "AttachmentFile": {
+                "type": "object",
+                "required": [
+                    "url",
+                    "signed_id"
+                ],
+                "properties": {
+                    "url": {
+                        "type": "string"
+                    },
+                    "signed_id": {
+                        "type": "string"
+                    }
+                }
+            },
+            "ScreenshotFile": {
+                "type": "object",
+                "required": [
+                    "id",
+                    "url",
+                    "signed_id"
+                ],
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "url": {
+                        "type": "string"
+                    },
+                    "signed_id": {
+                        "type": "string"
+                    }
+                }
+            },
+            "PwaComment": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "author": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "date": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "rating": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "likes": {
+                        "type": "integer",
+                        "nullable": true
+                    },
+                    "comment": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "reply_author": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "reply_date": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "reply_comment": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "status": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "avatar": {
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/AttachmentFile"
+                            }
+                        ],
+                        "nullable": true
+                    }
+                }
+            },
+            "PwaLanguage": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "lang": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "dev_name": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "downloads": {
+                        "type": "integer",
+                        "nullable": true
+                    },
+                    "age": {
+                        "type": "integer",
+                        "nullable": true
+                    },
+                    "description": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "tags": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "rating": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "reviews_count": {
+                        "type": "integer",
+                        "nullable": true
+                    },
+                    "txt_whats_new": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "website_url": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "developer_address": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "privacy_policy_url": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "developer_email": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "icon": {
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/AttachmentFile"
+                            }
+                        ],
+                        "nullable": true
+                    },
+                    "screenshots": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/ScreenshotFile"
+                        }
+                    },
+                    "comments": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/PwaComment"
+                        }
+                    }
+                }
+            },
+            "Pwa": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "company_id": {
+                        "type": "integer"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "naming": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "default_lang": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "active": {
+                        "type": "boolean"
+                    },
+                    "archived": {
+                        "type": "boolean"
+                    },
+                    "push_enabled": {
+                        "type": "boolean"
+                    },
+                    "white_page_type": {
+                        "type": "integer",
+                        "nullable": true
+                    },
+                    "white_page_url": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "loading_time": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "landing_type": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "domain_id": {
+                        "type": "integer",
+                        "nullable": true
+                    },
+                    "countries": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "platforms_ids": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "bot_check": {
+                        "type": "boolean"
+                    },
+                    "pwa_reach_ui": {
+                        "type": "boolean"
+                    },
+                    "open_offer_for_in_app_browsers": {
+                        "type": "boolean"
+                    },
+                    "turn_on_adm_smart_pixel": {
+                        "type": "boolean"
+                    },
+                    "pixel_countries": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "pixel_cities": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "track_key_ids": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        }
+                    },
+                    "languages": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/PwaLanguage"
+                        }
+                    }
+                }
+            },
+            "PwaListResponse": {
+                "type": "object",
+                "required": [
+                    "result",
+                    "data"
+                ],
+                "properties": {
+                    "result": {
+                        "type": "string",
+                        "enum": [
+                            "success"
+                        ]
+                    },
+                    "data": {
+                        "type": "object",
+                        "required": [
+                            "pwas",
+                            "meta"
+                        ],
+                        "properties": {
+                            "pwas": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/components/schemas/Pwa"
+                                }
+                            },
+                            "meta": {
+                                "$ref": "#/components/schemas/PaginationMeta"
+                            }
+                        }
+                    }
+                }
+            },
+            "PwaItemResponse": {
+                "type": "object",
+                "required": [
+                    "result",
+                    "data"
+                ],
+                "properties": {
+                    "result": {
+                        "type": "string",
+                        "enum": [
+                            "success"
+                        ]
+                    },
+                    "data": {
+                        "type": "object",
+                        "required": [
+                            "pwa"
+                        ],
+                        "properties": {
+                            "pwa": {
+                                "$ref": "#/components/schemas/Pwa"
+                            }
+                        }
+                    }
+                }
+            },
+            "PwaLanguageItemResponse": {
+                "type": "object",
+                "required": [
+                    "result",
+                    "data"
+                ],
+                "properties": {
+                    "result": {
+                        "type": "string",
+                        "enum": [
+                            "success"
+                        ]
+                    },
+                    "data": {
+                        "type": "object",
+                        "required": [
+                            "language"
+                        ],
+                        "properties": {
+                            "language": {
+                                "$ref": "#/components/schemas/PwaLanguage"
+                            }
+                        }
+                    }
+                }
+            },
+            "PwaCommentItemResponse": {
+                "type": "object",
+                "required": [
+                    "result",
+                    "data"
+                ],
+                "properties": {
+                    "result": {
+                        "type": "string",
+                        "enum": [
+                            "success"
+                        ]
+                    },
+                    "data": {
+                        "type": "object",
+                        "required": [
+                            "comment"
+                        ],
+                        "properties": {
+                            "comment": {
+                                "$ref": "#/components/schemas/PwaComment"
+                            }
+                        }
+                    }
+                }
+            },
+            "MetaPixel": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "company_id": {
+                        "type": "integer"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "fbp": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "fbat": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                }
+            },
+            "MetaPixelListResponse": {
+                "type": "object",
+                "required": [
+                    "result",
+                    "data"
+                ],
+                "properties": {
+                    "result": {
+                        "type": "string",
+                        "enum": [
+                            "success"
+                        ]
+                    },
+                    "data": {
+                        "type": "object",
+                        "required": [
+                            "meta_pixels",
+                            "meta"
+                        ],
+                        "properties": {
+                            "meta_pixels": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/components/schemas/MetaPixel"
+                                }
+                            },
+                            "meta": {
+                                "$ref": "#/components/schemas/PaginationMeta"
+                            }
+                        }
+                    }
+                }
+            },
+            "MetaPixelItemResponse": {
+                "type": "object",
+                "required": [
+                    "result",
+                    "data"
+                ],
+                "properties": {
+                    "result": {
+                        "type": "string",
+                        "enum": [
+                            "success"
+                        ]
+                    },
+                    "data": {
+                        "type": "object",
+                        "required": [
+                            "meta_pixel"
+                        ],
+                        "properties": {
+                            "meta_pixel": {
+                                "$ref": "#/components/schemas/MetaPixel"
+                            }
+                        }
+                    }
+                }
+            },
+            "Domain": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "company_id": {
+                        "type": "integer"
+                    },
+                    "url": {
+                        "type": "string"
+                    },
+                    "parent_id": {
+                        "type": "integer",
+                        "nullable": true
+                    },
+                    "pwa_id": {
+                        "type": "integer",
+                        "nullable": true
+                    },
+                    "domain_split_id": {
+                        "type": "integer",
+                        "nullable": true
+                    },
+                    "shared_company_ids": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        }
+                    },
+                    "wildcard_certificate_present": {
+                        "type": "boolean"
+                    },
+                    "total_opens": {
+                        "type": "integer"
+                    }
+                }
+            },
+            "DomainListResponse": {
+                "type": "object",
+                "required": [
+                    "result",
+                    "data"
+                ],
+                "properties": {
+                    "result": {
+                        "type": "string",
+                        "enum": [
+                            "success"
+                        ]
+                    },
+                    "data": {
+                        "type": "object",
+                        "required": [
+                            "domains",
+                            "meta"
+                        ],
+                        "properties": {
+                            "domains": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/components/schemas/Domain"
+                                }
+                            },
+                            "meta": {
+                                "$ref": "#/components/schemas/PaginationMeta"
+                            }
+                        }
+                    }
+                }
+            },
+            "DomainItemResponse": {
+                "type": "object",
+                "required": [
+                    "result",
+                    "data"
+                ],
+                "properties": {
+                    "result": {
+                        "type": "string",
+                        "enum": [
+                            "success"
+                        ]
+                    },
+                    "data": {
+                        "type": "object",
+                        "required": [
+                            "domain"
+                        ],
+                        "properties": {
+                            "domain": {
+                                "$ref": "#/components/schemas/Domain"
+                            }
+                        }
+                    }
+                }
+            },
+            "PushMessage": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "lang": {
+                        "type": "string"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "body": {
+                        "type": "string"
+                    },
+                    "image": {
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/AttachmentFile"
+                            }
+                        ],
+                        "nullable": true
+                    }
+                }
+            },
+            "PushSchedule": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "schedule_type": {
+                        "type": "string"
+                    },
+                    "time": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "delay_duration": {
+                        "type": "integer",
+                        "nullable": true
+                    },
+                    "days": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "repeat": {
+                        "type": "boolean"
+                    },
+                    "position": {
+                        "type": "integer"
+                    }
+                }
+            },
+            "Push": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "company_id": {
+                        "type": "integer"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "default_lang": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "active": {
+                        "type": "boolean"
+                    },
+                    "archived": {
+                        "type": "boolean"
+                    },
+                    "event_id": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "custom_click_url": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "custom_audience_user_ids": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "pwa_ids": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        }
+                    },
+                    "messages": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/PushMessage"
+                        }
+                    },
+                    "schedules": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/PushSchedule"
+                        }
+                    }
+                }
+            },
+            "PushListResponse": {
+                "type": "object",
+                "required": [
+                    "result",
+                    "data"
+                ],
+                "properties": {
+                    "result": {
+                        "type": "string",
+                        "enum": [
+                            "success"
+                        ]
+                    },
+                    "data": {
+                        "type": "object",
+                        "required": [
+                            "pushes",
+                            "meta"
+                        ],
+                        "properties": {
+                            "pushes": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/components/schemas/Push"
+                                }
+                            },
+                            "meta": {
+                                "$ref": "#/components/schemas/PaginationMeta"
+                            }
+                        }
+                    }
+                }
+            },
+            "PushItemResponse": {
+                "type": "object",
+                "required": [
+                    "result",
+                    "data"
+                ],
+                "properties": {
+                    "result": {
+                        "type": "string",
+                        "enum": [
+                            "success"
+                        ]
+                    },
+                    "data": {
+                        "type": "object",
+                        "required": [
+                            "push"
+                        ],
+                        "properties": {
+                            "push": {
+                                "$ref": "#/components/schemas/Push"
+                            }
+                        }
+                    }
+                }
+            },
+            "PushMessageItemResponse": {
+                "type": "object",
+                "required": [
+                    "result",
+                    "data"
+                ],
+                "properties": {
+                    "result": {
+                        "type": "string",
+                        "enum": [
+                            "success"
+                        ]
+                    },
+                    "data": {
+                        "type": "object",
+                        "required": [
+                            "message"
+                        ],
+                        "properties": {
+                            "message": {
+                                "$ref": "#/components/schemas/PushMessage"
+                            }
+                        }
+                    }
+                }
+            },
+            "PushScheduleItemResponse": {
+                "type": "object",
+                "required": [
+                    "result",
+                    "data"
+                ],
+                "properties": {
+                    "result": {
+                        "type": "string",
+                        "enum": [
+                            "success"
+                        ]
+                    },
+                    "data": {
+                        "type": "object",
+                        "required": [
+                            "schedule"
+                        ],
+                        "properties": {
+                            "schedule": {
+                                "$ref": "#/components/schemas/PushSchedule"
+                            }
+                        }
+                    }
+                }
+            },
+            "StatisticsMetricObject": {
+                "type": "object",
+                "additionalProperties": {
+                    "type": "integer"
+                }
+            },
+            "StatisticsMetricDeltaRow": {
+                "type": "object",
+                "properties": {
+                    "key": {
+                        "type": "string"
+                    },
+                    "unique": {
+                        "oneOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "number"
+                            }
+                        ]
+                    },
+                    "unique_previous": {
+                        "oneOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "number"
+                            }
+                        ]
+                    },
+                    "unique_delta_percent": {
+                        "type": "number"
+                    },
+                    "total": {
+                        "oneOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "number"
+                            }
+                        ]
+                    },
+                    "total_previous": {
+                        "oneOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "number"
+                            }
+                        ]
+                    },
+                    "total_delta_percent": {
+                        "type": "number"
+                    },
+                    "type": {
+                        "type": "string"
+                    }
+                }
+            },
+            "StatisticsUser": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
+                    },
+                    "ip": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "pwa_id": {
+                        "type": "integer",
+                        "nullable": true
+                    },
+                    "country": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "is_bot": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "is_white_page": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "is_pwa": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "os_name": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "nav_url": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "params": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                }
+            },
+            "StatisticsData": {
+                "type": "object",
+                "properties": {
+                    "range": {
+                        "type": "object",
+                        "properties": {
+                            "start": {
+                                "type": "string",
+                                "format": "date-time"
+                            },
+                            "end": {
+                                "type": "string",
+                                "format": "date-time"
+                            }
+                        }
+                    },
+                    "previous_range": {
+                        "type": "object",
+                        "properties": {
+                            "start": {
+                                "type": "string",
+                                "format": "date-time"
+                            },
+                            "end": {
+                                "type": "string",
+                                "format": "date-time"
+                            }
+                        }
+                    },
+                    "stats_source": {
+                        "type": "string",
+                        "enum": [
+                            "hourly",
+                            "daily",
+                            "hybrid"
+                        ]
+                    },
+                    "events": {
+                        "$ref": "#/components/schemas/StatisticsMetricObject"
+                    },
+                    "events_previous": {
+                        "$ref": "#/components/schemas/StatisticsMetricObject"
+                    },
+                    "events_table": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/StatisticsMetricDeltaRow"
+                        }
+                    },
+                    "push": {
+                        "$ref": "#/components/schemas/StatisticsMetricObject"
+                    },
+                    "push_previous": {
+                        "$ref": "#/components/schemas/StatisticsMetricObject"
+                    },
+                    "push_table": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/StatisticsMetricDeltaRow"
+                        }
+                    },
+                    "pixel": {
+                        "$ref": "#/components/schemas/StatisticsMetricObject"
+                    },
+                    "pixel_previous": {
+                        "$ref": "#/components/schemas/StatisticsMetricObject"
+                    },
+                    "pixel_table": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/StatisticsMetricDeltaRow"
+                        }
+                    },
+                    "users": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/StatisticsUser"
+                        }
+                    },
+                    "users_meta": {
+                        "$ref": "#/components/schemas/PaginationMeta"
+                    }
+                }
+            },
+            "StatisticsResponse": {
+                "type": "object",
+                "required": [
+                    "result",
+                    "data"
+                ],
+                "properties": {
+                    "result": {
+                        "type": "string",
+                        "enum": [
+                            "success"
+                        ]
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/StatisticsData"
+                    }
+                }
+            }
+        }
+    },
+    "paths": {
+        "/api/v1/uploads/direct": {
+            "post": {
+                "summary": "Create direct upload",
+                "tags": [
+                    "Uploads"
+                ],
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "parameters": [],
+                "responses": {
+                    "201": {
+                        "description": "created",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DirectUploadResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "validation error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": [
+                                    "blob"
+                                ],
+                                "properties": {
+                                    "blob": {
+                                        "type": "object",
+                                        "required": [
+                                            "filename",
+                                            "byte_size",
+                                            "checksum",
+                                            "content_type"
+                                        ],
+                                        "properties": {
+                                            "filename": {
+                                                "type": "string"
+                                            },
+                                            "byte_size": {
+                                                "type": "integer"
+                                            },
+                                            "checksum": {
+                                                "type": "string",
+                                                "description": "Base64-encoded MD5 checksum of file bytes"
+                                            },
+                                            "content_type": {
+                                                "type": "string",
+                                                "enum": [
+                                                    "image/png",
+                                                    "image/jpeg",
+                                                    "image/jpg",
+                                                    "image/webp",
+                                                    "image/gif"
+                                                ]
+                                            },
+                                            "metadata": {
+                                                "type": "object"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/pwas": {
+            "get": {
+                "summary": "List PWAs",
+                "tags": [
+                    "PWAs"
+                ],
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 100
+                        }
+                    },
+                    {
+                        "name": "archived",
+                        "in": "query",
+                        "schema": {
+                            "type": "boolean"
+                        }
+                    },
+                    {
+                        "name": "company_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "Super admin only: filter by one company. Ignored for admin/user."
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "successful",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PwaListResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "summary": "Create PWA",
+                "tags": [
+                    "PWAs"
+                ],
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "parameters": [],
+                "responses": {
+                    "201": {
+                        "description": "created",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PwaItemResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "validation error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": [
+                                    "pwa"
+                                ],
+                                "properties": {
+                                    "company_id": {
+                                        "type": "integer",
+                                        "description": "Super admin only: create in selected company. Ignored for admin/user."
+                                    },
+                                    "pwa": {
+                                        "type": "object",
+                                        "properties": {
+                                            "name": {
+                                                "type": "string"
+                                            },
+                                            "naming": {
+                                                "type": "string"
+                                            },
+                                            "default_lang": {
+                                                "type": "string"
+                                            },
+                                            "domain_id": {
+                                                "type": "integer"
+                                            },
+                                            "white_page_type": {
+                                                "type": "integer"
+                                            },
+                                            "white_page_url": {
+                                                "type": "string"
+                                            },
+                                            "loading_time": {
+                                                "type": "number"
+                                            },
+                                            "landing_type": {
+                                                "type": "string"
+                                            },
+                                            "push_enabled": {
+                                                "type": "boolean"
+                                            },
+                                            "active": {
+                                                "type": "boolean"
+                                            },
+                                            "bot_check": {
+                                                "type": "boolean"
+                                            },
+                                            "pwa_reach_ui": {
+                                                "type": "boolean"
+                                            },
+                                            "open_offer_for_in_app_browsers": {
+                                                "type": "boolean"
+                                            },
+                                            "turn_on_adm_smart_pixel": {
+                                                "type": "boolean"
+                                            },
+                                            "track_key_ids": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "countries": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "platforms_ids": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "pixel_countries": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "pixel_cities": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/pwas/{id}": {
+            "parameters": [
+                {
+                    "name": "id",
+                    "in": "path",
+                    "schema": {
+                        "type": "integer"
+                    },
+                    "required": true
+                }
+            ],
+            "get": {
+                "summary": "Show PWA",
+                "tags": [
+                    "PWAs"
+                ],
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "successful",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PwaItemResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "not found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "summary": "Update PWA",
+                "tags": [
+                    "PWAs"
+                ],
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": "successful",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PwaItemResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "validation error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "not found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": [
+                                    "pwa"
+                                ],
+                                "properties": {
+                                    "pwa": {
+                                        "type": "object",
+                                        "properties": {
+                                            "name": {
+                                                "type": "string"
+                                            },
+                                            "naming": {
+                                                "type": "string"
+                                            },
+                                            "default_lang": {
+                                                "type": "string"
+                                            },
+                                            "domain_id": {
+                                                "type": "integer"
+                                            },
+                                            "push_enabled": {
+                                                "type": "boolean"
+                                            },
+                                            "white_page_type": {
+                                                "type": "integer"
+                                            },
+                                            "white_page_url": {
+                                                "type": "string"
+                                            },
+                                            "loading_time": {
+                                                "type": "number"
+                                            },
+                                            "landing_type": {
+                                                "type": "string"
+                                            },
+                                            "active": {
+                                                "type": "boolean"
+                                            },
+                                            "bot_check": {
+                                                "type": "boolean"
+                                            },
+                                            "pwa_reach_ui": {
+                                                "type": "boolean"
+                                            },
+                                            "open_offer_for_in_app_browsers": {
+                                                "type": "boolean"
+                                            },
+                                            "turn_on_adm_smart_pixel": {
+                                                "type": "boolean"
+                                            },
+                                            "track_key_ids": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "countries": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "platforms_ids": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "pixel_countries": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "pixel_cities": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "summary": "Archive PWA",
+                "tags": [
+                    "PWAs"
+                ],
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "successful",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ArchivedResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "not found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/meta-pixels": {
+            "get": {
+                "summary": "List Meta Pixels",
+                "tags": [
+                    "Meta Pixels"
+                ],
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 100
+                        }
+                    },
+                    {
+                        "name": "company_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "Super admin only: filter by one company. Ignored for admin/user."
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "successful",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MetaPixelListResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "summary": "Create Meta Pixel",
+                "tags": [
+                    "Meta Pixels"
+                ],
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "parameters": [],
+                "responses": {
+                    "201": {
+                        "description": "created",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MetaPixelItemResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "validation error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": [
+                                    "meta_pixel"
+                                ],
+                                "properties": {
+                                    "company_id": {
+                                        "type": "integer",
+                                        "description": "Super admin only: create in selected company. Ignored for admin/user."
+                                    },
+                                    "meta_pixel": {
+                                        "type": "object",
+                                        "properties": {
+                                            "name": {
+                                                "type": "string"
+                                            },
+                                            "fbp": {
+                                                "type": "string"
+                                            },
+                                            "fbat": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/meta-pixels/{id}": {
+            "parameters": [
+                {
+                    "name": "id",
+                    "in": "path",
+                    "schema": {
+                        "type": "integer"
+                    },
+                    "required": true
+                }
+            ],
+            "get": {
+                "summary": "Show Meta Pixel",
+                "tags": [
+                    "Meta Pixels"
+                ],
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "successful",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MetaPixelItemResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "not found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "summary": "Update Meta Pixel",
+                "tags": [
+                    "Meta Pixels"
+                ],
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": "successful",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MetaPixelItemResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "validation error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "not found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": [
+                                    "meta_pixel"
+                                ],
+                                "properties": {
+                                    "meta_pixel": {
+                                        "type": "object",
+                                        "properties": {
+                                            "name": {
+                                                "type": "string"
+                                            },
+                                            "fbp": {
+                                                "type": "string"
+                                            },
+                                            "fbat": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "summary": "Delete Meta Pixel",
+                "tags": [
+                    "Meta Pixels"
+                ],
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "successful",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DeletedResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "not found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/domains": {
+            "get": {
+                "summary": "List Domains",
+                "tags": [
+                    "Domains"
+                ],
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 100
+                        }
+                    },
+                    {
+                        "name": "company_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "Super admin only: filter by one company. Ignored for admin/user."
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "successful",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DomainListResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "summary": "Create Domain or Subdomain",
+                "tags": [
+                    "Domains"
+                ],
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "parameters": [],
+                "responses": {
+                    "201": {
+                        "description": "created",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DomainItemResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "validation error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "not found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": [
+                                    "domain"
+                                ],
+                                "properties": {
+                                    "company_id": {
+                                        "type": "integer",
+                                        "description": "Super admin only: create in selected company. Ignored for admin/user."
+                                    },
+                                    "domain": {
+                                        "type": "object",
+                                        "properties": {
+                                            "url": {
+                                                "type": "string"
+                                            },
+                                            "root_domain_id": {
+                                                "type": "integer"
+                                            },
+                                            "parent_id": {
+                                                "type": "integer"
+                                            },
+                                            "subdomain_prefix": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/domains/{id}": {
+            "parameters": [
+                {
+                    "name": "id",
+                    "in": "path",
+                    "schema": {
+                        "type": "integer"
+                    },
+                    "required": true
+                }
+            ],
+            "get": {
+                "summary": "Show Domain",
+                "tags": [
+                    "Domains"
+                ],
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "successful",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DomainItemResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "not found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "summary": "Update Domain",
+                "tags": [
+                    "Domains"
+                ],
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": "successful",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DomainItemResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "validation error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "not found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": [
+                                    "domain"
+                                ],
+                                "properties": {
+                                    "domain": {
+                                        "type": "object",
+                                        "properties": {
+                                            "url": {
+                                                "type": "string"
+                                            },
+                                            "shared_company_ids": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "integer"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "summary": "Delete Domain",
+                "tags": [
+                    "Domains"
+                ],
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "successful",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DeletedResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "domain in use",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "not found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/pushes": {
+            "get": {
+                "summary": "List Pushes",
+                "tags": [
+                    "Pushes"
+                ],
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 100
+                        }
+                    },
+                    {
+                        "name": "company_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "Super admin only: filter by one company. Ignored for admin/user."
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "successful",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PushListResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "summary": "Create Push",
+                "tags": [
+                    "Pushes"
+                ],
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "parameters": [],
+                "responses": {
+                    "201": {
+                        "description": "created",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PushItemResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "validation error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": [
+                                    "push"
+                                ],
+                                "properties": {
+                                    "company_id": {
+                                        "type": "integer",
+                                        "description": "Super admin only: create in selected company. Ignored for admin/user."
+                                    },
+                                    "push": {
+                                        "type": "object",
+                                        "properties": {
+                                            "name": {
+                                                "type": "string"
+                                            },
+                                            "default_lang": {
+                                                "type": "string"
+                                            },
+                                            "active": {
+                                                "type": "boolean"
+                                            },
+                                            "event_id": {
+                                                "type": "string"
+                                            },
+                                            "custom_click_url": {
+                                                "type": "string"
+                                            },
+                                            "custom_audience_user_ids": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "pwa_ids": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "schedules_attributes": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "id": {
+                                                            "type": "integer"
+                                                        },
+                                                        "schedule_type": {
+                                                            "type": "string"
+                                                        },
+                                                        "time": {
+                                                            "type": "string"
+                                                        },
+                                                        "delay_duration": {
+                                                            "type": "integer"
+                                                        },
+                                                        "days": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "repeat": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "position": {
+                                                            "type": "integer"
+                                                        },
+                                                        "_destroy": {
+                                                            "type": "boolean"
+                                                        }
+                                                    }
+                                                }
+                                            },
+                                            "push_messages_attributes": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "id": {
+                                                            "type": "integer"
+                                                        },
+                                                        "lang": {
+                                                            "type": "string"
+                                                        },
+                                                        "title": {
+                                                            "type": "string"
+                                                        },
+                                                        "body": {
+                                                            "type": "string"
+                                                        },
+                                                        "_destroy": {
+                                                            "type": "boolean"
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/pushes/{id}": {
+            "parameters": [
+                {
+                    "name": "id",
+                    "in": "path",
+                    "schema": {
+                        "type": "integer"
+                    },
+                    "required": true
+                }
+            ],
+            "get": {
+                "summary": "Show Push",
+                "tags": [
+                    "Pushes"
+                ],
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "successful",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PushItemResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "not found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "summary": "Update Push",
+                "tags": [
+                    "Pushes"
+                ],
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": "successful",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PushItemResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "validation error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "not found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": [
+                                    "push"
+                                ],
+                                "properties": {
+                                    "push": {
+                                        "type": "object",
+                                        "properties": {
+                                            "name": {
+                                                "type": "string"
+                                            },
+                                            "default_lang": {
+                                                "type": "string"
+                                            },
+                                            "active": {
+                                                "type": "boolean"
+                                            },
+                                            "event_id": {
+                                                "type": "string"
+                                            },
+                                            "custom_click_url": {
+                                                "type": "string"
+                                            },
+                                            "pwa_ids": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "schedules_attributes": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "object"
+                                                }
+                                            },
+                                            "push_messages_attributes": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "object"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "summary": "Archive Push",
+                "tags": [
+                    "Pushes"
+                ],
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "successful",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ArchivedResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "not found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/pwas/{pwa_id}/languages": {
+            "parameters": [
+                {
+                    "name": "pwa_id",
+                    "in": "path",
+                    "schema": {
+                        "type": "integer"
+                    },
+                    "required": true
+                }
+            ],
+            "post": {
+                "summary": "Create PWA language",
+                "tags": [
+                    "PWA Languages"
+                ],
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "parameters": [],
+                "responses": {
+                    "201": {
+                        "description": "created",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PwaLanguageItemResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "not found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "validation error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": [
+                                    "language"
+                                ],
+                                "properties": {
+                                    "language": {
+                                        "type": "object",
+                                        "required": [
+                                            "lang"
+                                        ],
+                                        "properties": {
+                                            "lang": {
+                                                "type": "string"
+                                            },
+                                            "status": {
+                                                "type": "string"
+                                            },
+                                            "name": {
+                                                "type": "string"
+                                            },
+                                            "dev_name": {
+                                                "type": "string"
+                                            },
+                                            "downloads": {
+                                                "type": "integer"
+                                            },
+                                            "age": {
+                                                "type": "integer"
+                                            },
+                                            "description": {
+                                                "type": "string"
+                                            },
+                                            "tags": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "rating": {
+                                                "type": "number"
+                                            },
+                                            "reviews_count": {
+                                                "type": "integer"
+                                            },
+                                            "txt_whats_new": {
+                                                "type": "string"
+                                            },
+                                            "website_url": {
+                                                "type": "string"
+                                            },
+                                            "developer_address": {
+                                                "type": "string"
+                                            },
+                                            "privacy_policy_url": {
+                                                "type": "string"
+                                            },
+                                            "developer_email": {
+                                                "type": "string"
+                                            },
+                                            "icon_signed_id": {
+                                                "type": "string",
+                                                "description": "ActiveStorage signed id from /uploads/direct"
+                                            },
+                                            "icon_remove": {
+                                                "type": "boolean"
+                                            },
+                                            "screenshots_signed_ids": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "append_screenshots_signed_ids": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "reorder_screenshot_signed_ids": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "screenshots_clear": {
+                                                "type": "boolean"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/pwas/{pwa_id}/languages/{id}": {
+            "parameters": [
+                {
+                    "name": "pwa_id",
+                    "in": "path",
+                    "schema": {
+                        "type": "integer"
+                    },
+                    "required": true
+                },
+                {
+                    "name": "id",
+                    "in": "path",
+                    "schema": {
+                        "type": "integer"
+                    },
+                    "required": true
+                }
+            ],
+            "get": {
+                "summary": "Show PWA language",
+                "tags": [
+                    "PWA Languages"
+                ],
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "successful",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PwaLanguageItemResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "not found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "summary": "Update PWA language",
+                "tags": [
+                    "PWA Languages"
+                ],
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": "successful",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PwaLanguageItemResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "not found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "validation error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": [
+                                    "language"
+                                ],
+                                "properties": {
+                                    "language": {
+                                        "type": "object",
+                                        "properties": {
+                                            "name": {
+                                                "type": "string"
+                                            },
+                                            "description": {
+                                                "type": "string"
+                                            },
+                                            "rating": {
+                                                "type": "number"
+                                            },
+                                            "icon_signed_id": {
+                                                "type": "string",
+                                                "description": "ActiveStorage signed id from /uploads/direct"
+                                            },
+                                            "icon_remove": {
+                                                "type": "boolean"
+                                            },
+                                            "screenshots_signed_ids": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "append_screenshots_signed_ids": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "reorder_screenshot_signed_ids": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "screenshots_clear": {
+                                                "type": "boolean"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "summary": "Delete PWA language",
+                "tags": [
+                    "PWA Languages"
+                ],
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "successful",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DeletedResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "not found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/pwas/{pwa_id}/languages/{language_id}/comments": {
+            "parameters": [
+                {
+                    "name": "pwa_id",
+                    "in": "path",
+                    "schema": {
+                        "type": "integer"
+                    },
+                    "required": true
+                },
+                {
+                    "name": "language_id",
+                    "in": "path",
+                    "schema": {
+                        "type": "integer"
+                    },
+                    "required": true
+                }
+            ],
+            "post": {
+                "summary": "Create PWA language comment",
+                "tags": [
+                    "PWA Comments"
+                ],
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "parameters": [],
+                "responses": {
+                    "201": {
+                        "description": "created",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PwaCommentItemResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "not found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "validation error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": [
+                                    "comment"
+                                ],
+                                "properties": {
+                                    "comment": {
+                                        "type": "object",
+                                        "properties": {
+                                            "author": {
+                                                "type": "string"
+                                            },
+                                            "date": {
+                                                "type": "string"
+                                            },
+                                            "rating": {
+                                                "type": "number"
+                                            },
+                                            "likes": {
+                                                "type": "integer"
+                                            },
+                                            "comment": {
+                                                "type": "string"
+                                            },
+                                            "reply_author": {
+                                                "type": "string"
+                                            },
+                                            "reply_date": {
+                                                "type": "string"
+                                            },
+                                            "reply_comment": {
+                                                "type": "string"
+                                            },
+                                            "status": {
+                                                "type": "string"
+                                            },
+                                            "avatar_signed_id": {
+                                                "type": "string"
+                                            },
+                                            "avatar_remove": {
+                                                "type": "boolean"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/pwas/{pwa_id}/languages/{language_id}/comments/{id}": {
+            "parameters": [
+                {
+                    "name": "pwa_id",
+                    "in": "path",
+                    "schema": {
+                        "type": "integer"
+                    },
+                    "required": true
+                },
+                {
+                    "name": "language_id",
+                    "in": "path",
+                    "schema": {
+                        "type": "integer"
+                    },
+                    "required": true
+                },
+                {
+                    "name": "id",
+                    "in": "path",
+                    "schema": {
+                        "type": "integer"
+                    },
+                    "required": true
+                }
+            ],
+            "patch": {
+                "summary": "Update PWA language comment",
+                "tags": [
+                    "PWA Comments"
+                ],
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": "successful",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PwaCommentItemResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "not found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "validation error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": [
+                                    "comment"
+                                ],
+                                "properties": {
+                                    "comment": {
+                                        "type": "object",
+                                        "properties": {
+                                            "comment": {
+                                                "type": "string"
+                                            },
+                                            "likes": {
+                                                "type": "integer"
+                                            },
+                                            "avatar_signed_id": {
+                                                "type": "string"
+                                            },
+                                            "avatar_remove": {
+                                                "type": "boolean"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "summary": "Delete PWA language comment",
+                "tags": [
+                    "PWA Comments"
+                ],
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "successful",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DeletedResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "not found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/pushes/{push_id}/messages": {
+            "parameters": [
+                {
+                    "name": "push_id",
+                    "in": "path",
+                    "schema": {
+                        "type": "integer"
+                    },
+                    "required": true
+                }
+            ],
+            "post": {
+                "summary": "Create push message",
+                "tags": [
+                    "Push Messages"
+                ],
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "parameters": [],
+                "responses": {
+                    "201": {
+                        "description": "created",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PushMessageItemResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "not found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "validation error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": [
+                                    "message"
+                                ],
+                                "properties": {
+                                    "message": {
+                                        "type": "object",
+                                        "required": [
+                                            "lang",
+                                            "title",
+                                            "body"
+                                        ],
+                                        "properties": {
+                                            "lang": {
+                                                "type": "string"
+                                            },
+                                            "title": {
+                                                "type": "string"
+                                            },
+                                            "body": {
+                                                "type": "string"
+                                            },
+                                            "image_signed_id": {
+                                                "type": "string"
+                                            },
+                                            "image_remove": {
+                                                "type": "boolean"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/pushes/{push_id}/messages/{id}": {
+            "parameters": [
+                {
+                    "name": "push_id",
+                    "in": "path",
+                    "schema": {
+                        "type": "integer"
+                    },
+                    "required": true
+                },
+                {
+                    "name": "id",
+                    "in": "path",
+                    "schema": {
+                        "type": "integer"
+                    },
+                    "required": true
+                }
+            ],
+            "patch": {
+                "summary": "Update push message",
+                "tags": [
+                    "Push Messages"
+                ],
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": "successful",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PushMessageItemResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "not found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "validation error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": [
+                                    "message"
+                                ],
+                                "properties": {
+                                    "message": {
+                                        "type": "object",
+                                        "properties": {
+                                            "title": {
+                                                "type": "string"
+                                            },
+                                            "body": {
+                                                "type": "string"
+                                            },
+                                            "image_signed_id": {
+                                                "type": "string"
+                                            },
+                                            "image_remove": {
+                                                "type": "boolean"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "summary": "Delete push message",
+                "tags": [
+                    "Push Messages"
+                ],
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "successful",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DeletedResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "not found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/pushes/{push_id}/schedules": {
+            "parameters": [
+                {
+                    "name": "push_id",
+                    "in": "path",
+                    "schema": {
+                        "type": "integer"
+                    },
+                    "required": true
+                }
+            ],
+            "post": {
+                "summary": "Create push schedule",
+                "tags": [
+                    "Push Schedules"
+                ],
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "parameters": [],
+                "responses": {
+                    "201": {
+                        "description": "created",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PushScheduleItemResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "not found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "validation error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": [
+                                    "schedule"
+                                ],
+                                "properties": {
+                                    "schedule": {
+                                        "type": "object",
+                                        "properties": {
+                                            "schedule_type": {
+                                                "type": "string"
+                                            },
+                                            "time": {
+                                                "type": "string"
+                                            },
+                                            "delay_duration": {
+                                                "type": "integer"
+                                            },
+                                            "days": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "repeat": {
+                                                "type": "boolean"
+                                            },
+                                            "position": {
+                                                "type": "integer"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/pushes/{push_id}/schedules/{id}": {
+            "parameters": [
+                {
+                    "name": "push_id",
+                    "in": "path",
+                    "schema": {
+                        "type": "integer"
+                    },
+                    "required": true
+                },
+                {
+                    "name": "id",
+                    "in": "path",
+                    "schema": {
+                        "type": "integer"
+                    },
+                    "required": true
+                }
+            ],
+            "patch": {
+                "summary": "Update push schedule",
+                "tags": [
+                    "Push Schedules"
+                ],
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": "successful",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PushScheduleItemResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "not found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "validation error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": [
+                                    "schedule"
+                                ],
+                                "properties": {
+                                    "schedule": {
+                                        "type": "object",
+                                        "properties": {
+                                            "repeat": {
+                                                "type": "boolean"
+                                            },
+                                            "position": {
+                                                "type": "integer"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "summary": "Delete push schedule",
+                "tags": [
+                    "Push Schedules"
+                ],
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "successful",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DeletedResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "not found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/push/create/instant": {
+            "post": {
+                "summary": "Create instant push",
+                "tags": [
+                    "Instant Push"
+                ],
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": "enqueued",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": [
+                                        "ok",
+                                        "enqueued"
+                                    ],
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean",
+                                            "enum": [
+                                                true
+                                            ]
+                                        },
+                                        "enqueued": {
+                                            "type": "integer",
+                                            "minimum": 1
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "invalid api key",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": [
+                                        "error"
+                                    ],
+                                    "properties": {
+                                        "error": {
+                                            "type": "string",
+                                            "enum": [
+                                                "invalid_api_key"
+                                            ]
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "validation error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": [
+                                        "error"
+                                    ],
+                                    "properties": {
+                                        "error": {
+                                            "type": "string",
+                                            "enum": [
+                                                "users_ids_required",
+                                                "title_and_text_required"
+                                            ]
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": [
+                                    "api_key",
+                                    "users_ids",
+                                    "title",
+                                    "text"
+                                ],
+                                "properties": {
+                                    "api_key": {
+                                        "type": "string",
+                                        "description": "Required. Same company instant_push_token used for API access."
+                                    },
+                                    "users_ids": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "internal_name": {
+                                        "type": "string",
+                                        "nullable": true
+                                    },
+                                    "name": {
+                                        "type": "string",
+                                        "nullable": true,
+                                        "description": "Fallback for internal_name"
+                                    },
+                                    "title": {
+                                        "type": "string"
+                                    },
+                                    "text": {
+                                        "type": "string"
+                                    },
+                                    "image": {
+                                        "type": "string",
+                                        "nullable": true,
+                                        "description": "Optional image URL"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "required": true
+                }
+            }
+        },
+        "/api/v1/statistics": {
+            "get": {
+                "summary": "Get statistics",
+                "tags": [
+                    "Statistics"
+                ],
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "start",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "date-time"
+                        }
+                    },
+                    {
+                        "name": "end",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "date-time"
+                        }
+                    },
+                    {
+                        "name": "pwa_ids",
+                        "in": "query",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "integer"
+                            }
+                        },
+                        "style": "form",
+                        "explode": true
+                    },
+                    {
+                        "name": "pixel",
+                        "in": "query",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        "style": "form",
+                        "explode": true
+                    },
+                    {
+                        "name": "push_campaign",
+                        "in": "query",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        "style": "form",
+                        "explode": true
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1
+                        },
+                        "description": "Pagination for users section"
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 100
+                        },
+                        "description": "Pagination for users section"
+                    },
+                    {
+                        "name": "company_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "Super admin only: filter by one company. Ignored for admin/user."
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "successful",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/StatisticsResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

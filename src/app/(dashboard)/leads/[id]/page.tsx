@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Save, MessageSquare, RefreshCw } from "lucide-react";
+import { ArrowLeft, Save, MessageSquare, RefreshCw, Smartphone, Link2, Unlink } from "lucide-react";
 import { toast } from "sonner";
 import { SendSmsDialog } from "@/components/leads/SendSmsDialog";
 
@@ -50,6 +50,7 @@ export default function LeadDetailPage({
   const [saving, setSaving] = useState(false);
   const [smsOpen, setSmsOpen] = useState(false);
   const [recalculating, setRecalculating] = useState(false);
+  const [pwaLinking, setPwaLinking] = useState(false);
 
   useEffect(() => {
     async function fetchLead() {
@@ -110,6 +111,25 @@ export default function LeadDetailPage({
     }
   };
 
+  const leadMeta = lead?.meta ? (typeof lead.meta === "string" ? (() => { try { return JSON.parse(lead.meta); } catch { return {}; } })() : lead.meta) : {};
+  const leadUgid = leadMeta?.ugid as string | undefined;
+  const leadPwaId = leadMeta?.pwaId as number | undefined;
+
+  const handleUnlinkPwa = async () => {
+    setPwaLinking(true);
+    try {
+      const res = await fetch(`/api/leads/${id}/link-pwa`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to unlink");
+      const updated = await res.json();
+      setLead({ ...lead, ...updated });
+      toast.success("PWA user unlinked");
+    } catch {
+      toast.error("Failed to unlink PWA user");
+    } finally {
+      setPwaLinking(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -136,6 +156,39 @@ export default function LeadDetailPage({
       </div>
 
       <LeadDetailCard lead={lead} />
+
+      {/* PWA Tracking Section */}
+      <div className="flex items-center gap-4 rounded-lg border p-4">
+        <Smartphone className="h-5 w-5 text-muted-foreground" />
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-medium text-muted-foreground">PWA:</span>
+          {leadUgid ? (
+            <>
+              <Badge variant="outline" className="bg-purple-100 text-purple-800 border-purple-200">
+                <Link2 className="h-3 w-3 mr-1" />
+                Linked
+              </Badge>
+              <span className="text-xs text-muted-foreground font-mono">{leadUgid}</span>
+              {leadPwaId && (
+                <span className="text-xs text-muted-foreground">PWA #{leadPwaId}</span>
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleUnlinkPwa}
+                disabled={pwaLinking}
+              >
+                <Unlink className="h-3 w-3 mr-1" />
+                Unlink
+              </Button>
+            </>
+          ) : (
+            <Badge variant="outline" className="bg-gray-100 text-gray-500 border-gray-200">
+              Not linked
+            </Badge>
+          )}
+        </div>
+      </div>
 
       {/* Lead Score Section */}
       <div className="flex items-center gap-4 rounded-lg border p-4">

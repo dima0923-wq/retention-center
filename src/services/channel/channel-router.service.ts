@@ -2,17 +2,19 @@ import type { Lead, Campaign } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { VapiService } from "./vapi.service";
 import { SmsService } from "./sms.service";
+import { PushService } from "./push.service";
 import { InstantlyService } from "./email.service";
 import { PostmarkService } from "./postmark.service";
 import { ABTestService } from "@/services/ab-test.service";
 import { SchedulerService } from "../scheduler.service";
 import { EmailTemplateService } from "@/services/email-template.service";
 
-// Channel priority: EMAIL first, then SMS, then CALL
+// Channel priority: EMAIL first, then SMS, then CALL, then PUSH
 const CHANNEL_PRIORITY: Record<string, number> = {
   EMAIL: 0,
   SMS: 1,
   CALL: 2,
+  PUSH: 3,
 };
 
 const DEFAULT_MAX_CONTACTS_PER_LEAD = 5;
@@ -88,7 +90,7 @@ export class ChannelRouterService {
         channel,
         scriptId,
         status: "PENDING",
-        provider: channel === "CALL" ? "vapi" : channel === "SMS" ? "sms" : "email",
+        provider: channel === "CALL" ? "vapi" : channel === "SMS" ? "sms" : channel === "PUSH" ? "pwaflow" : "email",
         notes: abTestNote,
       },
     });
@@ -114,6 +116,9 @@ export class ChannelRouterService {
         break;
       case "SMS":
         result = await SmsService.sendSms(lead, selectedScript);
+        break;
+      case "PUSH":
+        result = await PushService.sendPush(lead, selectedScript);
         break;
       case "EMAIL": {
         // Check if Postmark is active — use it as primary email provider
@@ -220,6 +225,10 @@ export class ChannelRouterService {
         if (channel === "EMAIL" && !lead.email) return false;
         if (channel === "SMS" && !lead.phone) return false;
         if (channel === "CALL" && !lead.phone) return false;
+        if (channel === "PUSH") {
+          const meta = lead.meta ? (typeof lead.meta === "string" ? JSON.parse(lead.meta) : lead.meta) as Record<string, unknown> : {};
+          if (!meta.pwaUserId) return false;
+        }
         return true;
       });
 
@@ -300,6 +309,9 @@ export class ChannelRouterService {
           break;
         case "SMS":
           result = await SmsService.sendSms(attempt.lead, attempt.script);
+          break;
+        case "PUSH":
+          result = await PushService.sendPush(attempt.lead, attempt.script);
           break;
         case "EMAIL": {
           const pmConfig = await prisma.integrationConfig.findUnique({
