@@ -5,6 +5,7 @@ const AUTH_CENTER_URL = "https://ag4.q37fh758g.click";
 const SELF_URL = "https://ag2.q37fh758g.click";
 
 const PUBLIC_PATHS = [
+  "/health",
   "/auth/",
   "/_next/",
   "/api/webhooks/",
@@ -18,6 +19,12 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
+    return NextResponse.next();
+  }
+
+  // Service-to-service API key bypass (for Hermes, Traffic Center, etc.)
+  const serviceKey = request.headers.get("x-service-key");
+  if (serviceKey && serviceKey === process.env.SERVICE_API_KEY) {
     return NextResponse.next();
   }
 
