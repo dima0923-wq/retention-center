@@ -11,6 +11,7 @@ const PUBLIC_PATHS = [
   "/favicon.ico",
   "/api/auth/",
   "/api/cron/",
+  "/api/health",
 ];
 
 export function middleware(request: NextRequest) {
@@ -41,7 +42,7 @@ export function middleware(request: NextRequest) {
           );
         }
         const callbackUrl = `${SELF_URL}/auth/token`;
-        const loginUrl = `${AUTH_CENTER_URL}/login?redirect_url=${encodeURIComponent(callbackUrl)}&error=no_project_access&project=retention_center`;
+        const loginUrl = `${AUTH_CENTER_URL}/login?redirect_url=${encodeURIComponent(callbackUrl)}`;
         return NextResponse.redirect(loginUrl);
       }
     } catch {
