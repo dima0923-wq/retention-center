@@ -94,17 +94,9 @@ function PwaCard({ pwa }: { pwa: Pwa }) {
           <CardTitle className="text-base font-semibold line-clamp-1">
             {pwa.name}
           </CardTitle>
-          <div className="flex items-center gap-1.5">
-            {pwa.push_enabled && (
-              <Badge variant="outline" className="text-xs">
-                <Bell className="h-3 w-3 mr-1" />
-                Push
-              </Badge>
-            )}
-            <Badge variant={pwa.active ? "default" : "secondary"}>
-              {pwa.active ? "Active" : "Inactive"}
-            </Badge>
-          </div>
+          <Badge variant={pwa.active ? "default" : "secondary"}>
+            {pwa.active ? "Active" : "Inactive"}
+          </Badge>
         </CardHeader>
         <CardContent className="space-y-3">
           {pwa.naming && (

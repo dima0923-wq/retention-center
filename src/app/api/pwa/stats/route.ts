@@ -24,21 +24,24 @@ export async function GET(req: NextRequest) {
       limit,
     });
 
-    // Also fetch PWA list for summary stats
+    // Fetch PWA lists to count total items (meta.total = total pages, not items)
     const [activePwas, archivedPwas] = await Promise.all([
-      pwaflowService.listPwas({ page: 1, limit: 1, archived: false }),
-      pwaflowService.listPwas({ page: 1, limit: 1, archived: true }),
+      pwaflowService.listPwas({ page: 1, limit: 100, archived: false }),
+      pwaflowService.listPwas({ page: 1, limit: 100, archived: true }),
     ]);
 
-    const totalPwas = (activePwas.meta.total ?? 0) + (archivedPwas.meta.total ?? 0);
+    const activeCount = activePwas.pwas.length;
+    const archivedCount = archivedPwas.pwas.length;
+    const totalPwas = activeCount + archivedCount;
 
-    // Extract install and push subscriber counts from statistics events
-    const installs = data.events?.install ?? data.events?.installed ?? 0;
-    const pushSubscribers = data.events?.push_subscribe ?? data.events?.push_subscribed ?? 0;
+    // Real event keys from PwaFlow statistics API
+    const events = data.events ?? {};
+    const installs = events.installs ?? 0;
+    const pushSubscribers = events.push_accepted ?? 0;
 
     return NextResponse.json({
       totalPwas,
-      activePwas: activePwas.meta.total ?? 0,
+      activePwas: activeCount,
       totalInstalls: installs,
       pushSubscribers,
       statistics: data,
