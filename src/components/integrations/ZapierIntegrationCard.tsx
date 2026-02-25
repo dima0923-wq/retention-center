@@ -60,7 +60,7 @@ export function ZapierIntegrationCard() {
             </CardDescription>
           </div>
         </div>
-        <ConnectionStatus status={totalCount > 0 ? "connected" : "disconnected"} />
+        <ConnectionStatus status="connected" />
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-1.5">
