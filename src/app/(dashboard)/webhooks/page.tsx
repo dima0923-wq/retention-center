@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Plus, Search, Webhook as WebhookIcon } from "lucide-react";
+import { Plus, Search, Info, Webhook as WebhookIcon } from "lucide-react";
 import { toast } from "sonner";
 import { WebhookList, type Webhook } from "@/components/webhooks/webhook-list";
 import {
@@ -30,12 +30,11 @@ export default function WebhooksPage() {
   >(undefined);
   const [deleteTarget, setDeleteTarget] = useState<Webhook | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [infoOpen, setInfoOpen] = useState(false);
 
   const fetchWebhooks = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams();
-      if (search) params.set("search", search);
       const res = await fetch("/api/webhooks/config");
       if (!res.ok) throw new Error("Failed to fetch");
       const data: Webhook[] = await res.json();
@@ -169,10 +168,15 @@ export default function WebhooksPage() {
             Manage inbound webhooks to receive leads from external sources.
           </p>
         </div>
-        <Button onClick={handleCreate}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add Webhook
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="icon" onClick={() => setInfoOpen(true)} title="Setup instructions">
+            <Info className="h-4 w-4" />
+          </Button>
+          <Button onClick={handleCreate}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Webhook
+          </Button>
+        </div>
       </div>
 
       <div className="flex items-center gap-4">
@@ -248,6 +252,59 @@ export default function WebhooksPage() {
               {deleteLoading ? "Deleting..." : "Delete"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={infoOpen} onOpenChange={setInfoOpen}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>How to set up webhooks</DialogTitle>
+            <DialogDescription>
+              Follow the instructions below for your webhook type.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-5 text-sm">
+            <div>
+              <h4 className="font-semibold mb-2">For Zapier:</h4>
+              <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
+                <li>Create a webhook here with type &quot;Zapier&quot;</li>
+                <li>Copy the webhook URL</li>
+                <li>In Zapier, create a new Zap with &quot;Webhooks by Zapier&quot; as the action</li>
+                <li>Paste the webhook URL as the destination</li>
+                <li>Map your form fields to the webhook payload (email, first_name, last_name, phone)</li>
+              </ol>
+            </div>
+            <div>
+              <h4 className="font-semibold mb-2">For Facebook Lead Ads:</h4>
+              <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
+                <li>Create a webhook here with type &quot;Facebook Lead Ads&quot;</li>
+                <li>Enter your Page Access Token</li>
+                <li>Copy the webhook URL and Verify Token</li>
+                <li>In Meta Business Manager, go to Business Settings &rarr; Integrations &rarr; Leads Access</li>
+                <li>Set Callback URL = your webhook URL</li>
+                <li>Set Verify Token = the token shown in the webhook config</li>
+                <li>Subscribe to the &quot;leadgen&quot; field</li>
+              </ol>
+            </div>
+            <div>
+              <h4 className="font-semibold mb-2">For Generic webhooks:</h4>
+              <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
+                <li>Create a webhook with type &quot;Generic&quot;</li>
+                <li>Copy the webhook URL</li>
+                <li>Send POST requests with JSON body containing lead fields</li>
+                <li>Configure field mapping if your field names differ from standard (email, phone, first_name, last_name)</li>
+              </ol>
+            </div>
+            <div className="rounded-md bg-muted p-3">
+              <p className="text-xs font-medium mb-1">Webhook URL format:</p>
+              <code className="text-xs font-mono">
+                https://ag2.q37fh758g.click/api/webhooks/inbound/&#123;slug&#125;
+              </code>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Each webhook gets a unique URL. Leads received through each webhook are tagged with the webhook&apos;s source label for tracking.
+            </p>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

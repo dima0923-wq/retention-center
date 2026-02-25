@@ -520,9 +520,10 @@ export class WebhookService {
   ): LeadFields {
     const result: LeadFields = {};
 
-    if (fieldMappingJson) {
-      const mapping = JSON.parse(fieldMappingJson) as Record<string, string>;
+    const mapping = fieldMappingJson ? JSON.parse(fieldMappingJson) as Record<string, string> : {};
+    const hasExplicitMapping = Object.keys(mapping).length > 0;
 
+    if (hasExplicitMapping) {
       // mapping: { incomingKey: leadField }
       for (const [incomingKey, leadField] of Object.entries(mapping)) {
         if (rawFields[incomingKey] && LEAD_FIELD_KEYS.includes(leadField as typeof LEAD_FIELD_KEYS[number])) {

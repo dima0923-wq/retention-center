@@ -39,6 +39,10 @@ export async function POST(req: NextRequest, context: RouteContext) {
   try {
     const { slug } = await context.params;
 
+    // Look up webhook once to determine type (avoids redundant DB queries later)
+    const webhook = await WebhookService.getBySlug(slug);
+    const isFacebook = webhook?.type === "facebook";
+
     let body: Record<string, unknown> = {};
     try {
       body = await req.json();
@@ -53,17 +57,13 @@ export async function POST(req: NextRequest, context: RouteContext) {
 
     if ("error" in result) {
       // For Facebook webhooks, always return 200 to prevent retries
-      // We check the slug to determine this since processInbound already resolved the webhook
-      const webhook = await WebhookService.getBySlug(slug);
-      if (webhook?.type === "facebook") {
+      if (isFacebook) {
         return NextResponse.json({ received: true });
       }
       return NextResponse.json({ error: result.error }, { status: result.status || 400 });
     }
 
-    // Check if this is a Facebook webhook to format the response accordingly
-    const webhook = await WebhookService.getBySlug(slug);
-    if (webhook?.type === "facebook") {
+    if (isFacebook) {
       return NextResponse.json({ received: true });
     }
 
