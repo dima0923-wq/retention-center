@@ -137,6 +137,30 @@ async function handlePostback(params: KeitaroParams): Promise<{ id: string } | N
     }
   }
 
+  // Fire-and-forget webhook to Hermes for conversion feedback loop
+  const hermesWebhookUrl = process.env.HERMES_WEBHOOK_URL;
+  const hermesWebhookSecret = process.env.HERMES_WEBHOOK_SECRET;
+  if (hermesWebhookUrl) {
+    fetch(`${hermesWebhookUrl}/api/webhooks/conversions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Webhook-Secret": hermesWebhookSecret || "",
+      },
+      body: JSON.stringify({
+        lead_id: leadId,
+        campaign_id: campaignId,
+        revenue: payout ? parseFloat(payout) || 0 : 0,
+        conversion_type: status,
+        sub_id: sub_id,
+        source: "keitaro",
+        timestamp: new Date().toISOString(),
+      }),
+    }).catch((err) => {
+      console.error("[Hermes webhook] Failed to notify:", err.message);
+    });
+  }
+
   return conversion;
 }
 
