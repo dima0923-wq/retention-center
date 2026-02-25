@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@/lib/db";
 import { verifyApiAuth, AuthError, authErrorResponse, requirePermission } from "@/lib/api-auth";
 
 export async function GET(req: NextRequest) {

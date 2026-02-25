@@ -35,7 +35,7 @@ export function KeitaroIntegrationCard() {
   const [stats, setStats] = useState<Stats>({ total: 0, today: 0, thisWeek: 0 });
   const [testing, setTesting] = useState(false);
   const [testingConn, setTestingConn] = useState(false);
-  const [connStatus, setConnStatus] = useState<ConnStatus>("unknown");
+  const [connStatus, setConnStatus] = useState<ConnStatus>("testing");
   const [campaignCount, setCampaignCount] = useState<number | null>(null);
 
   const baseUrl = getBaseUrl();
@@ -130,7 +130,7 @@ export function KeitaroIntegrationCard() {
             </CardDescription>
           </div>
         </div>
-        <ConnectionStatus status={connStatus === "connected" ? "connected" : connStatus === "disconnected" ? "disconnected" : "unknown"} />
+        <ConnectionStatus status={connStatus} />
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Connection info */}
@@ -141,7 +141,7 @@ export function KeitaroIntegrationCard() {
             ) : connStatus === "disconnected" ? (
               <WifiOff className="h-3.5 w-3.5 text-red-500" />
             ) : (
-              <Wifi className="h-3.5 w-3.5 text-muted-foreground" />
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
             )}
             <span>
               {connStatus === "connected"
@@ -150,7 +150,7 @@ export function KeitaroIntegrationCard() {
                   : "Connected"
                 : connStatus === "disconnected"
                 ? "API connection failed"
-                : "Connection not tested"}
+                : "Checking connection..."}
             </span>
           </div>
           <Button

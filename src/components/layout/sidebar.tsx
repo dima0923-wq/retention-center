@@ -24,19 +24,21 @@ import {
   MailOpen,
   Smartphone,
   Webhook,
+  TrendingUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 import { useUser } from "@/lib/user-context";
 
 const navItems = [
-  { label: "Dashboard", href: "/", icon: LayoutDashboard },
+  { label: "Dashboard", href: "/", icon: LayoutDashboard, exact: true },
   { label: "Leads", href: "/leads", icon: Users },
   { label: "Campaigns", href: "/campaigns", icon: Megaphone },
   { label: "Sequences", href: "/sequences", icon: GitBranch },
   { label: "Scripts", href: "/scripts", icon: FileText },
   { label: "Email Templates", href: "/email-templates", icon: Mail },
-  { label: "Integrations", href: "/integrations", icon: Plug },
+  { label: "Integrations", href: "/integrations", icon: Plug, exact: true },
+  { label: "Keitaro", href: "/integrations/keitaro", icon: TrendingUp },
   { label: "Webhooks", href: "/webhooks", icon: Webhook },
   { label: "PWA", href: "/pwa", icon: Smartphone },
   { label: "Send a test", href: "/test-send", icon: FlaskConical },
@@ -69,10 +71,9 @@ export function Sidebar() {
       <nav className="flex-1 overflow-y-auto px-2 py-3">
         <ul className="space-y-1">
           {navItems.map((item) => {
-            const isActive =
-              item.href === "/"
-                ? pathname === "/"
-                : pathname.startsWith(item.href);
+            const isActive = item.exact
+              ? pathname === item.href
+              : pathname.startsWith(item.href);
 
             return (
               <li key={item.href}>
