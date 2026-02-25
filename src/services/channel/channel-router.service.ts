@@ -311,17 +311,34 @@ export class ChannelRouterService {
       (a, b) => (CHANNEL_PRIORITY[a.channel] ?? 99) - (CHANNEL_PRIORITY[b.channel] ?? 99)
     );
 
+    if (pending.length === 0) return { processed: 0, results: [] };
+
+    // Batch: fetch all referenced campaigns in one query
+    const campaignIds = [...new Set(
+      pending.map((a) => a.campaignId).filter(Boolean) as string[]
+    )];
+    const campaigns = campaignIds.length > 0
+      ? await prisma.campaign.findMany({
+          where: { id: { in: campaignIds } },
+          select: { id: true, status: true, meta: true },
+        })
+      : [];
+    const campaignMap = new Map(campaigns.map((c) => [c.id, c]));
+
+    // Batch: fetch postmark config once (used by all EMAIL attempts)
+    const hasEmailAttempts = pending.some((a) => a.channel === "EMAIL");
+    const postmarkConfig = hasEmailAttempts
+      ? await prisma.integrationConfig.findUnique({ where: { provider: "postmark" } })
+      : null;
+
     const results = [];
     for (const attempt of pending) {
       if (!attempt.script || !attempt.lead) continue;
 
-      // Check if campaign is still active
+      // Check if campaign is still active (from batch-fetched map)
       let campaignMeta: unknown = undefined;
       if (attempt.campaignId) {
-        const campaign = await prisma.campaign.findUnique({
-          where: { id: attempt.campaignId },
-          select: { status: true, meta: true },
-        });
+        const campaign = campaignMap.get(attempt.campaignId);
         if (campaign && campaign.status === "PAUSED") {
           // Skip paused campaign attempts
           continue;
@@ -344,10 +361,7 @@ export class ChannelRouterService {
           result = await PushService.sendPush(attempt.lead, attempt.script);
           break;
         case "EMAIL": {
-          const pmConfig = await prisma.integrationConfig.findUnique({
-            where: { provider: "postmark" },
-          });
-          if (pmConfig?.isActive) {
+          if (postmarkConfig?.isActive) {
             // Check for email template in campaign meta
             const qMeta = campaignMeta ? JSON.parse(campaignMeta as string) : {};
             let qEmailTemplate: { subject: string; htmlBody: string; textBody?: string | null; fromEmail?: string; fromName?: string } | null = null;

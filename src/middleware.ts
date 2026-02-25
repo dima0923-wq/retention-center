@@ -22,7 +22,18 @@ const PUBLIC_PATHS = [
   "/api/vapi-calls/auto-sync",
 ];
 
+function addRequestId(req: NextRequest, response: NextResponse): NextResponse {
+  const requestId = req.headers.get("x-request-id") || crypto.randomUUID();
+  response.headers.set("X-Request-ID", requestId);
+  return response;
+}
+
 export async function middleware(request: NextRequest) {
+  const response = await innerMiddleware(request);
+  return addRequestId(request, response);
+}
+
+async function innerMiddleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {

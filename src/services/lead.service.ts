@@ -156,21 +156,8 @@ export class LeadService {
   }
 
   static async bulkCreate(inputs: LeadCreateInput[]) {
-    const results = { created: 0, deduplicated: 0, errors: 0 };
-
-    for (const input of inputs) {
-      try {
-        const result = await LeadService.create(input);
-        if (result.deduplicated) {
-          results.deduplicated++;
-        } else {
-          results.created++;
-        }
-      } catch {
-        results.errors++;
-      }
-    }
-
+    // Delegate to batch-optimized version (avoids N+1 per-lead queries)
+    const { results } = await LeadService.bulkCreateOptimized(inputs);
     return results;
   }
 

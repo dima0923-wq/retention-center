@@ -93,66 +93,85 @@ export class SchedulerService {
       orderBy: { startedAt: "asc" },
     });
 
+    if (dueAttempts.length === 0) return { processed: 0 };
+
+    // Batch: collect unique campaign IDs and fetch all campaigns in one query
+    const campaignIds = [...new Set(
+      dueAttempts.map((a) => a.campaignId).filter(Boolean) as string[]
+    )];
+    const campaigns = campaignIds.length > 0
+      ? await prisma.campaign.findMany({ where: { id: { in: campaignIds } } })
+      : [];
+    const campaignMap = new Map(campaigns.map((c) => [c.id, c]));
+
+    // Batch: idempotency check — find all recent non-scheduled attempts
+    // for the same lead+campaign+channel combos in one query
+    const hourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const attemptsWithCampaign = dueAttempts.filter((a) => a.campaignId && a.lead);
+
+    const recentAttempts = attemptsWithCampaign.length > 0
+      ? await prisma.contactAttempt.findMany({
+          where: {
+            OR: attemptsWithCampaign.map((a) => ({
+              leadId: a.leadId,
+              campaignId: a.campaignId!,
+              channel: a.channel,
+            })),
+            status: { notIn: ["SCHEDULED", "CANCELLED"] },
+            startedAt: { gte: hourAgo },
+          },
+        })
+      : [];
+
+    // Build a set of "leadId:campaignId:channel" keys that already have recent attempts
+    const recentKeys = new Set(
+      recentAttempts.map((a) => `${a.leadId}:${a.campaignId}:${a.channel}`)
+    );
+
     let processed = 0;
 
     for (const attempt of dueAttempts) {
       if (!attempt.lead) continue;
+      if (!attempt.campaignId) continue;
 
-      // Fetch campaign once with all needed fields
-      if (attempt.campaignId) {
-        // Idempotency check: skip if a non-scheduled attempt already exists
-        // for this lead+campaign+channel in the same hour (prevents duplicates)
-        const hourAgo = new Date(Date.now() - 60 * 60 * 1000);
-        const existingAttempt = await prisma.contactAttempt.findFirst({
-          where: {
-            leadId: attempt.leadId,
-            campaignId: attempt.campaignId,
-            channel: attempt.channel,
-            status: { notIn: ["SCHEDULED", "CANCELLED"] },
-            startedAt: { gte: hourAgo },
-          },
-        });
+      const dedupKey = `${attempt.leadId}:${attempt.campaignId}:${attempt.channel}`;
 
-        if (existingAttempt) {
-          // Already processed — mark scheduled attempt as completed to avoid re-processing
-          await prisma.contactAttempt.update({
-            where: { id: attempt.id },
-            data: {
-              status: "COMPLETED",
-              completedAt: new Date(),
-              notes: `Skipped: duplicate of attempt ${existingAttempt.id}`,
-            },
-          });
-          processed++;
-          continue;
-        }
-
-        const campaign = await prisma.campaign.findUnique({
-          where: { id: attempt.campaignId },
-        });
-
-        if (!campaign) continue;
-        if (campaign.status === "PAUSED") continue;
-
-        // Route through channel-router (which will create a new attempt)
-        const result = await ChannelRouterService.routeContact(
-          attempt.lead,
-          campaign,
-          attempt.channel
-        );
-
-        // Mark the scheduled attempt as completed regardless
+      if (recentKeys.has(dedupKey)) {
+        // Already processed — mark scheduled attempt as completed to avoid re-processing
         await prisma.contactAttempt.update({
           where: { id: attempt.id },
           data: {
-            status: "error" in result ? "FAILED" : "COMPLETED",
+            status: "COMPLETED",
             completedAt: new Date(),
-            notes: "error" in result ? result.error : "Processed from schedule",
+            notes: "Skipped: duplicate (batch dedup check)",
           },
         });
-
         processed++;
+        continue;
       }
+
+      const campaign = campaignMap.get(attempt.campaignId);
+      if (!campaign) continue;
+      if (campaign.status === "PAUSED") continue;
+
+      // Route through channel-router (which will create a new attempt)
+      const result = await ChannelRouterService.routeContact(
+        attempt.lead,
+        campaign,
+        attempt.channel
+      );
+
+      // Mark the scheduled attempt as completed regardless
+      await prisma.contactAttempt.update({
+        where: { id: attempt.id },
+        data: {
+          status: "error" in result ? "FAILED" : "COMPLETED",
+          completedAt: new Date(),
+          notes: "error" in result ? result.error : "Processed from schedule",
+        },
+      });
+
+      processed++;
     }
 
     return { processed };

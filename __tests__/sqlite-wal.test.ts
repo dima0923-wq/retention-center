@@ -46,4 +46,20 @@ describe("SQLite WAL mode", () => {
     )) as Array<{ synchronous: number }>;
     expect(result[0].synchronous).toBe(1);
   });
+
+  it("should set cache_size to -64000 (64MB)", async () => {
+    const result = (await client.$queryRawUnsafe(
+      "PRAGMA cache_size"
+    )) as Array<Record<string, unknown>>;
+    const value = result[0].cache_size ?? Object.values(result[0])[0];
+    expect(value).toBe(-64000);
+  });
+
+  it("should set mmap_size to 268435456 (256MB)", async () => {
+    const result = (await client.$queryRawUnsafe(
+      "PRAGMA mmap_size"
+    )) as Array<Record<string, unknown>>;
+    const value = result[0].mmap_size ?? Object.values(result[0])[0];
+    expect(value).toBe(268435456);
+  });
 });

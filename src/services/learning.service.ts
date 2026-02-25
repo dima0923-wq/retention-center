@@ -122,16 +122,7 @@ export class LearningService {
   static async getTopPerformingWords(channel: string, limit = 20, sortDir: "desc" | "asc" = "desc") {
     const MIN_SAMPLE = 10;
 
-    // Get all contact attempts for this channel that have scripts
-    const attempts = await prisma.contactAttempt.findMany({
-      where: { channel, scriptId: { not: null } },
-      select: {
-        id: true,
-        scriptId: true,
-        status: true,
-        script: { select: { content: true } },
-      },
-    });
+    const BATCH_SIZE = 1000;
 
     // Build word -> { total, converted } map
     const wordStats = new Map<
@@ -139,39 +130,67 @@ export class LearningService {
       { total: number; converted: number }
     >();
 
-    // Get conversion contact attempt IDs
-    const conversionAttemptIds = new Set(
-      (
-        await prisma.conversion.findMany({
-          where: { channel, contactAttemptId: { not: null } },
-          select: { contactAttemptId: true },
-        })
-      )
-        .map((c) => c.contactAttemptId)
-        .filter(Boolean) as string[]
-    );
-
-    // Also count SUCCESS status as conversion if no explicit conversion record
-    for (const attempt of attempts) {
-      if (!attempt.script?.content) continue;
-      const words = tokenize(attempt.script.content);
-      const uniqueWords = new Set(words);
-      const isConverted =
-        conversionAttemptIds.has(attempt.id) || attempt.status === "SUCCESS";
-
-      for (const word of uniqueWords) {
-        const stat = wordStats.get(word) ?? { total: 0, converted: 0 };
-        stat.total++;
-        if (isConverted) stat.converted++;
-        wordStats.set(word, stat);
+    // Get conversion contact attempt IDs in batches
+    const conversionAttemptIds = new Set<string>();
+    let convCursor: string | undefined;
+    while (true) {
+      const batch = await prisma.conversion.findMany({
+        where: { channel, contactAttemptId: { not: null } },
+        select: { id: true, contactAttemptId: true },
+        take: BATCH_SIZE,
+        ...(convCursor ? { skip: 1, cursor: { id: convCursor } } : {}),
+        orderBy: { id: "asc" },
+      });
+      if (batch.length === 0) break;
+      convCursor = batch[batch.length - 1].id;
+      for (const c of batch) {
+        if (c.contactAttemptId) conversionAttemptIds.add(c.contactAttemptId);
       }
+      if (batch.length < BATCH_SIZE) break;
     }
 
-    // Calculate overall conversion rate for z-test baseline
-    const totalAttempts = attempts.length;
-    const totalConverted = attempts.filter(
-      (a) => conversionAttemptIds.has(a.id) || a.status === "SUCCESS"
-    ).length;
+    // Process contact attempts in batches using cursor-based pagination
+    let totalAttempts = 0;
+    let totalConverted = 0;
+    let attemptCursor: string | undefined;
+
+    while (true) {
+      const batch = await prisma.contactAttempt.findMany({
+        where: { channel, scriptId: { not: null } },
+        select: {
+          id: true,
+          scriptId: true,
+          status: true,
+          script: { select: { content: true } },
+        },
+        take: BATCH_SIZE,
+        ...(attemptCursor ? { skip: 1, cursor: { id: attemptCursor } } : {}),
+        orderBy: { id: "asc" },
+      });
+
+      if (batch.length === 0) break;
+      attemptCursor = batch[batch.length - 1].id;
+
+      for (const attempt of batch) {
+        totalAttempts++;
+        const isConverted =
+          conversionAttemptIds.has(attempt.id) || attempt.status === "SUCCESS";
+        if (isConverted) totalConverted++;
+
+        if (!attempt.script?.content) continue;
+        const words = tokenize(attempt.script.content);
+        const uniqueWords = new Set(words);
+
+        for (const word of uniqueWords) {
+          const stat = wordStats.get(word) ?? { total: 0, converted: 0 };
+          stat.total++;
+          if (isConverted) stat.converted++;
+          wordStats.set(word, stat);
+        }
+      }
+
+      if (batch.length < BATCH_SIZE) break;
+    }
     const baseRate = totalAttempts > 0 ? totalConverted / totalAttempts : 0;
 
     // Filter by minimum sample size, compute stats
@@ -431,46 +450,67 @@ export class LearningService {
     const where: Record<string, unknown> = {};
     if (channel) where.channel = channel;
 
-    const attempts = await prisma.contactAttempt.findMany({
-      where,
-      select: {
-        id: true,
-        startedAt: true,
-        status: true,
-      },
-    });
+    const BATCH_SIZE = 1000;
 
-    // Get conversion attempt IDs
+    // Get conversion attempt IDs in batches
     const conversionWhere: Record<string, unknown> = {};
     if (channel) conversionWhere.channel = channel;
     conversionWhere.contactAttemptId = { not: null };
 
-    const conversionAttemptIds = new Set(
-      (
-        await prisma.conversion.findMany({
-          where: conversionWhere,
-          select: { contactAttemptId: true },
-        })
-      )
-        .map((c) => c.contactAttemptId)
-        .filter(Boolean) as string[]
-    );
+    const conversionAttemptIds = new Set<string>();
+    let convCursor: string | undefined;
+    while (true) {
+      const batch = await prisma.conversion.findMany({
+        where: conversionWhere,
+        select: { id: true, contactAttemptId: true },
+        take: BATCH_SIZE,
+        ...(convCursor ? { skip: 1, cursor: { id: convCursor } } : {}),
+        orderBy: { id: "asc" },
+      });
+      if (batch.length === 0) break;
+      convCursor = batch[batch.length - 1].id;
+      for (const c of batch) {
+        if (c.contactAttemptId) conversionAttemptIds.add(c.contactAttemptId as string);
+      }
+      if (batch.length < BATCH_SIZE) break;
+    }
 
     // Build heatmap: [dayOfWeek][hour] -> { total, converted }
     const heatmap = new Map<string, { total: number; converted: number }>();
 
-    for (const attempt of attempts) {
-      const date = new Date(attempt.startedAt);
-      const day = date.getDay();
-      const hour = date.getHours();
-      const key = `${day}-${hour}`;
+    // Process attempts in batches
+    let attemptCursor: string | undefined;
+    while (true) {
+      const batch = await prisma.contactAttempt.findMany({
+        where,
+        select: {
+          id: true,
+          startedAt: true,
+          status: true,
+        },
+        take: BATCH_SIZE,
+        ...(attemptCursor ? { skip: 1, cursor: { id: attemptCursor } } : {}),
+        orderBy: { id: "asc" },
+      });
 
-      const slot = heatmap.get(key) ?? { total: 0, converted: 0 };
-      slot.total++;
-      if (conversionAttemptIds.has(attempt.id) || attempt.status === "SUCCESS") {
-        slot.converted++;
+      if (batch.length === 0) break;
+      attemptCursor = batch[batch.length - 1].id;
+
+      for (const attempt of batch) {
+        const date = new Date(attempt.startedAt);
+        const day = date.getDay();
+        const hour = date.getHours();
+        const key = `${day}-${hour}`;
+
+        const slot = heatmap.get(key) ?? { total: 0, converted: 0 };
+        slot.total++;
+        if (conversionAttemptIds.has(attempt.id) || attempt.status === "SUCCESS") {
+          slot.converted++;
+        }
+        heatmap.set(key, slot);
       }
-      heatmap.set(key, slot);
+
+      if (batch.length < BATCH_SIZE) break;
     }
 
     const result = Array.from(heatmap.entries()).map(([key, stats]) => {
@@ -564,23 +604,30 @@ export class LearningService {
       where: { status: { in: ["ACTIVE", "PAUSED"] } },
       include: {
         steps: { orderBy: { stepOrder: "asc" } },
-        enrollments: {
-          select: { status: true },
-        },
       },
     });
 
+    // Batch-fetch enrollment status counts per sequence
+    const seqIds = sequences.map((s) => s.id);
+    const enrollmentStatusCounts = await prisma.sequenceEnrollment.groupBy({
+      by: ["sequenceId", "status"],
+      where: { sequenceId: { in: seqIds } },
+      _count: true,
+    });
+
+    // Build lookup: sequenceId -> Map<status, count>
+    const enrollmentMap = new Map<string, Map<string, number>>();
+    for (const row of enrollmentStatusCounts) {
+      if (!enrollmentMap.has(row.sequenceId)) enrollmentMap.set(row.sequenceId, new Map());
+      enrollmentMap.get(row.sequenceId)!.set(row.status, row._count);
+    }
+
     const results = await Promise.all(sequences.map(async (seq) => {
-      const totalEnrolled = seq.enrollments.length;
-      const converted = seq.enrollments.filter(
-        (e) => e.status === "CONVERTED"
-      ).length;
-      const completed = seq.enrollments.filter(
-        (e) => e.status === "COMPLETED"
-      ).length;
-      const active = seq.enrollments.filter(
-        (e) => e.status === "ACTIVE"
-      ).length;
+      const statusCounts = enrollmentMap.get(seq.id) ?? new Map<string, number>();
+      const totalEnrolled = Array.from(statusCounts.values()).reduce((a, b) => a + b, 0);
+      const converted = statusCounts.get("CONVERTED") ?? 0;
+      const completed = statusCounts.get("COMPLETED") ?? 0;
+      const active = statusCounts.get("ACTIVE") ?? 0;
       const conversionRate =
         totalEnrolled > 0
           ? Math.round((converted / totalEnrolled) * 1000) / 10
@@ -653,13 +700,30 @@ export class LearningService {
    * Compares multi-channel vs single-channel sequence performance.
    */
   static async getChannelMixAnalysis() {
+    // Load sequences with steps only (no enrollments — use aggregation instead)
     const sequences = await prisma.retentionSequence.findMany({
       where: { status: { in: ["ACTIVE", "PAUSED", "ARCHIVED"] } },
-      include: {
-        steps: true,
-        enrollments: true,
+      select: {
+        id: true,
+        steps: { select: { channel: true, delayValue: true, delayUnit: true } },
       },
     });
+
+    // Batch-fetch enrollment counts per sequence using groupBy
+    const enrollmentCounts = await prisma.sequenceEnrollment.groupBy({
+      by: ["sequenceId", "status"],
+      where: { sequenceId: { in: sequences.map((s) => s.id) } },
+      _count: true,
+    });
+
+    // Build lookup: sequenceId -> { total, converted }
+    const enrollmentMap = new Map<string, { total: number; converted: number }>();
+    for (const row of enrollmentCounts) {
+      const entry = enrollmentMap.get(row.sequenceId) ?? { total: 0, converted: 0 };
+      entry.total += row._count;
+      if (row.status === "CONVERTED") entry.converted += row._count;
+      enrollmentMap.set(row.sequenceId, entry);
+    }
 
     // Group by channel combination
     const combos = new Map<
@@ -672,6 +736,7 @@ export class LearningService {
         ...new Set(seq.steps.map((s) => s.channel)),
       ].sort();
       const key = channels.join("+") || "none";
+      const enrollment = enrollmentMap.get(seq.id) ?? { total: 0, converted: 0 };
 
       const entry = combos.get(key) ?? {
         totalEnrolled: 0,
@@ -679,10 +744,8 @@ export class LearningService {
         sequences: 0,
       };
       entry.sequences++;
-      entry.totalEnrolled += seq.enrollments.length;
-      entry.converted += seq.enrollments.filter(
-        (e) => e.status === "CONVERTED"
-      ).length;
+      entry.totalEnrolled += enrollment.total;
+      entry.converted += enrollment.converted;
       combos.set(key, entry);
     }
 
@@ -709,16 +772,15 @@ export class LearningService {
     >();
 
     for (const seq of sequences) {
+      const enrollment = enrollmentMap.get(seq.id) ?? { total: 0, converted: 0 };
       for (const step of seq.steps) {
         const delayKey = `${step.delayValue}${step.delayUnit.charAt(0).toLowerCase()}`;
         const entry = delayPerformance.get(delayKey) ?? {
           totalEnrolled: 0,
           converted: 0,
         };
-        entry.totalEnrolled += seq.enrollments.length;
-        entry.converted += seq.enrollments.filter(
-          (e) => e.status === "CONVERTED"
-        ).length;
+        entry.totalEnrolled += enrollment.total;
+        entry.converted += enrollment.converted;
         delayPerformance.set(delayKey, entry);
       }
     }
@@ -754,31 +816,47 @@ export class LearningService {
       where: { status: "ACTIVE" },
       include: {
         steps: { orderBy: { stepOrder: "asc" } },
-        enrollments: true,
       },
     });
 
-    // Batch-fetch all step executions to avoid N+1 queries
-    const allStepIds = sequences.flatMap((s) => s.steps.map((st) => st.id));
-    const allExecs = await prisma.sequenceStepExecution.findMany({
-      where: { stepId: { in: allStepIds } },
-      select: { stepId: true, status: true },
+    // Batch-fetch enrollment status counts per sequence using groupBy
+    const seqIds = sequences.map((s) => s.id);
+    const enrollStatusCounts = await prisma.sequenceEnrollment.groupBy({
+      by: ["sequenceId", "status"],
+      where: { sequenceId: { in: seqIds } },
+      _count: true,
     });
-    const execsByStep = new Map<string, typeof allExecs>();
-    for (const e of allExecs) {
-      const arr = execsByStep.get(e.stepId) ?? [];
-      arr.push(e);
-      execsByStep.set(e.stepId, arr);
+
+    const enrollMap = new Map<string, { total: number; converted: number }>();
+    for (const row of enrollStatusCounts) {
+      const entry = enrollMap.get(row.sequenceId) ?? { total: 0, converted: 0 };
+      entry.total += row._count;
+      if (row.status === "CONVERTED") entry.converted += row._count;
+      enrollMap.set(row.sequenceId, entry);
+    }
+
+    // Batch-fetch step execution status counts using groupBy instead of loading all records
+    const allStepIds = sequences.flatMap((s) => s.steps.map((st) => st.id));
+    const execStatusCounts = await prisma.sequenceStepExecution.groupBy({
+      by: ["stepId", "status"],
+      where: { stepId: { in: allStepIds } },
+      _count: true,
+    });
+
+    // Build lookup: stepId -> Map<status, count>
+    const execsByStep = new Map<string, Map<string, number>>();
+    for (const row of execStatusCounts) {
+      if (!execsByStep.has(row.stepId)) execsByStep.set(row.stepId, new Map());
+      execsByStep.get(row.stepId)!.set(row.status, row._count);
     }
 
     for (const seq of sequences) {
-      const totalEnrolled = seq.enrollments.length;
+      const enrollment = enrollMap.get(seq.id) ?? { total: 0, converted: 0 };
+      const totalEnrolled = enrollment.total;
       if (totalEnrolled < 5) continue;
 
-      const converted = seq.enrollments.filter(
-        (e) => e.status === "CONVERTED"
-      ).length;
-      const convRate = converted / totalEnrolled;
+      const converted = enrollment.converted;
+      const convRate = totalEnrolled > 0 ? converted / totalEnrolled : 0;
 
       // Low conversion rate warning
       if (convRate < 0.02 && totalEnrolled >= 20) {
@@ -789,18 +867,17 @@ export class LearningService {
         });
       }
 
-      // Check for steps with high failure rates using pre-fetched data
+      // Check for steps with high failure rates using pre-fetched aggregated data
       for (const step of seq.steps) {
-        const stepExecs = execsByStep.get(step.id) ?? [];
-        if (stepExecs.length >= 10) {
-          const failed = stepExecs.filter(
-            (e) => e.status === "FAILED"
-          ).length;
-          if (failed / stepExecs.length > 0.5) {
+        const statusCounts = execsByStep.get(step.id) ?? new Map<string, number>();
+        const totalExecs = Array.from(statusCounts.values()).reduce((a, b) => a + b, 0);
+        if (totalExecs >= 10) {
+          const failed = statusCounts.get("FAILED") ?? 0;
+          if (failed / totalExecs > 0.5) {
             recommendations.push({
               type: "pause",
               priority: "high",
-              text: `Step ${step.stepOrder + 1} (${step.channel}) in "${seq.name}" has ${Math.round((failed / stepExecs.length) * 100)}% failure rate. Consider pausing or replacing it.`,
+              text: `Step ${step.stepOrder + 1} (${step.channel}) in "${seq.name}" has ${Math.round((failed / totalExecs) * 100)}% failure rate. Consider pausing or replacing it.`,
             });
           }
         }

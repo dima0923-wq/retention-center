@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { BarChart3, Copy, Check, Send, Loader2 } from "lucide-react";
+import { BarChart3, Copy, Check, Send, Loader2, ExternalLink, Wifi, WifiOff } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { ConnectionStatus } from "./ConnectionStatus";
 import { toast } from "sonner";
+import Link from "next/link";
 
 function getBaseUrl() {
   if (typeof window !== "undefined") return window.location.origin;
@@ -27,10 +28,15 @@ type Stats = {
   thisWeek: number;
 };
 
+type ConnStatus = "connected" | "disconnected" | "testing";
+
 export function KeitaroIntegrationCard() {
   const [copied, setCopied] = useState(false);
   const [stats, setStats] = useState<Stats>({ total: 0, today: 0, thisWeek: 0 });
   const [testing, setTesting] = useState(false);
+  const [testingConn, setTestingConn] = useState(false);
+  const [connStatus, setConnStatus] = useState<ConnStatus>("unknown");
+  const [campaignCount, setCampaignCount] = useState<number | null>(null);
 
   const baseUrl = getBaseUrl();
   const postbackUrl = `${baseUrl}/api/webhooks/keitaro?sub_id={subid}&status={status}&payout={payout}&click_id={clickid}`;
@@ -44,7 +50,36 @@ export function KeitaroIntegrationCard() {
         }
       })
       .catch(() => {});
+
+    // Test connection on mount
+    testConnection(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const testConnection = async (showToast = true) => {
+    setTestingConn(true);
+    try {
+      const res = await fetch("/api/keitaro/test", { method: "POST" });
+      const data = await res.json();
+      if (data.ok) {
+        setConnStatus("connected");
+        if (showToast) toast.success("Keitaro connection successful");
+        // Fetch campaign count
+        const campRes = await fetch("/api/keitaro/campaigns");
+        if (campRes.ok) {
+          const camps = await campRes.json();
+          setCampaignCount(Array.isArray(camps) ? camps.length : null);
+        }
+      } else {
+        setConnStatus("disconnected");
+        if (showToast) toast.error(`Connection failed: ${data.message}`);
+      }
+    } catch {
+      setConnStatus("disconnected");
+      if (showToast) toast.error("Network error testing connection");
+    }
+    setTestingConn(false);
+  };
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(postbackUrl);
@@ -67,7 +102,6 @@ export function KeitaroIntegrationCard() {
       });
       if (res.ok) {
         toast.success("Test postback sent successfully");
-        // Refresh stats
         const statsRes = await fetch("/api/conversions/stats");
         if (statsRes.ok) {
           const data = await statsRes.json();
@@ -90,15 +124,49 @@ export function KeitaroIntegrationCard() {
             <BarChart3 className="h-5 w-5" />
           </div>
           <div>
-            <CardTitle className="text-base">Keitaro Postback</CardTitle>
+            <CardTitle className="text-base">Keitaro Tracker</CardTitle>
             <CardDescription className="text-xs">
-              Receive conversion data from Keitaro tracker
+              Receive conversion postbacks &amp; sync campaign data
             </CardDescription>
           </div>
         </div>
-        <ConnectionStatus status="connected" />
+        <ConnectionStatus status={connStatus === "connected" ? "connected" : connStatus === "disconnected" ? "disconnected" : "unknown"} />
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Connection info */}
+        <div className="flex items-center justify-between rounded-md border px-3 py-2">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            {connStatus === "connected" ? (
+              <Wifi className="h-3.5 w-3.5 text-emerald-500" />
+            ) : connStatus === "disconnected" ? (
+              <WifiOff className="h-3.5 w-3.5 text-red-500" />
+            ) : (
+              <Wifi className="h-3.5 w-3.5 text-muted-foreground" />
+            )}
+            <span>
+              {connStatus === "connected"
+                ? campaignCount !== null
+                  ? `Connected — ${campaignCount} campaign${campaignCount !== 1 ? "s" : ""}`
+                  : "Connected"
+                : connStatus === "disconnected"
+                ? "API connection failed"
+                : "Connection not tested"}
+            </span>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => testConnection(true)}
+            disabled={testingConn}
+          >
+            {testingConn ? (
+              <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+            ) : null}
+            Test Connection
+          </Button>
+        </div>
+
         {/* Postback URL */}
         <div className="space-y-1.5">
           <Label className="text-xs text-muted-foreground">Postback URL Template</Label>
@@ -156,8 +224,15 @@ export function KeitaroIntegrationCard() {
           </div>
         </div>
 
-        {/* Test postback */}
-        <div className="flex justify-end pt-2">
+        {/* Footer actions */}
+        <div className="flex items-center justify-between pt-2">
+          <Link
+            href="/integrations/keitaro"
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ExternalLink className="h-3.5 w-3.5" />
+            Full Settings
+          </Link>
           <Button size="sm" variant="outline" onClick={handleTestPostback} disabled={testing}>
             {testing ? (
               <Loader2 className="mr-2 h-3 w-3 animate-spin" />

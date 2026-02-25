@@ -30,10 +30,12 @@ interface KeitaroParams {
   status?: string;
   payout?: string;
   click_id?: string;
+  campaign_id?: string;
+  campaign_name?: string;
 }
 
 async function handlePostback(params: KeitaroParams): Promise<{ id: string } | NextResponse> {
-  const { sub_id, status = "lead", payout, click_id } = params;
+  const { sub_id, status = "lead", payout, click_id, campaign_id, campaign_name } = params;
 
   // Idempotency: avoid duplicate conversions for same sub_id + source
   if (sub_id) {
@@ -71,6 +73,17 @@ async function handlePostback(params: KeitaroParams): Promise<{ id: string } | N
     }
   }
 
+  // If no campaignId resolved yet, try to resolve via KeitaroCampaignMapping
+  if (!campaignId && campaign_id) {
+    const mapping = await prisma.keitaroCampaignMapping.findUnique({
+      where: { keitaroCampaignId: campaign_id },
+      select: { campaignId: true },
+    });
+    if (mapping?.campaignId) {
+      campaignId = mapping.campaignId;
+    }
+  }
+
   // Create conversion record
   const conversion = await prisma.conversion.create({
     data: {
@@ -84,6 +97,8 @@ async function handlePostback(params: KeitaroParams): Promise<{ id: string } | N
       source: "keitaro",
       postbackData: JSON.stringify(params),
       contactAttemptId,
+      keitaroCampaignId: campaign_id || null,
+      keitaroCampaignName: campaign_name || null,
     },
   });
 
@@ -195,6 +210,8 @@ export async function GET(req: NextRequest) {
       status: url.searchParams.get("status") || undefined,
       payout: url.searchParams.get("payout") || undefined,
       click_id: url.searchParams.get("click_id") || undefined,
+      campaign_id: url.searchParams.get("campaign_id") || undefined,
+      campaign_name: url.searchParams.get("campaign_name") || undefined,
     };
 
     const result = await handlePostback(params);
@@ -217,6 +234,8 @@ export async function POST(req: NextRequest) {
       status: body.status,
       payout: body.payout?.toString(),
       click_id: body.click_id,
+      campaign_id: body.campaign_id?.toString(),
+      campaign_name: body.campaign_name,
     };
 
     const result = await handlePostback(params);

@@ -12,6 +12,8 @@ export async function initDatabase(client: PrismaClient) {
   await client.$executeRawUnsafe("PRAGMA journal_mode=WAL");
   await client.$executeRawUnsafe("PRAGMA busy_timeout=5000");
   await client.$executeRawUnsafe("PRAGMA synchronous=NORMAL");
+  await client.$executeRawUnsafe("PRAGMA cache_size=-64000");
+  await client.$executeRawUnsafe("PRAGMA mmap_size=268435456");
   initializedClients.add(client);
 }
 

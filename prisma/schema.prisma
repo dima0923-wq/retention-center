@@ -52,13 +52,14 @@ model Campaign {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  campaignLeads   CampaignLead[]
-  scripts         Script[]
-  contactAttempts ContactAttempt[]
-  abTests         ABTest[]
-  conversions     Conversion[]
-  zapierConfigs   ZapierWebhookConfig[]
-  webhooks        Webhook[]
+  campaignLeads          CampaignLead[]
+  scripts                Script[]
+  contactAttempts        ContactAttempt[]
+  abTests                ABTest[]
+  conversions            Conversion[]
+  zapierConfigs          ZapierWebhookConfig[]
+  webhooks               Webhook[]
+  keitaroCampaignMappings KeitaroCampaignMapping[]
 
   @@index([status])
 }
@@ -140,18 +141,20 @@ model IntegrationConfig {
 }
 
 model Conversion {
-  id               String   @id @default(cuid())
-  leadId           String?
-  campaignId       String?
-  channel          String?
-  revenue          Float    @default(0)
-  status           String   @default("lead")
-  subId            String?
-  clickId          String?
-  source           String   @default("keitaro")
-  postbackData     String?
-  contactAttemptId String?
-  createdAt        DateTime @default(now())
+  id                   String   @id @default(cuid())
+  leadId               String?
+  campaignId           String?
+  channel              String?
+  revenue              Float    @default(0)
+  status               String   @default("lead")
+  subId                String?
+  clickId              String?
+  source               String   @default("keitaro")
+  postbackData         String?
+  contactAttemptId     String?
+  keitaroCampaignId    String?
+  keitaroCampaignName  String?
+  createdAt            DateTime @default(now())
 
   lead           Lead?           @relation(fields: [leadId], references: [id], onDelete: SetNull)
   campaign       Campaign?       @relation(fields: [campaignId], references: [id], onDelete: SetNull)
@@ -162,6 +165,23 @@ model Conversion {
   @@index([subId])
   @@index([clickId])
   @@index([source])
+  @@index([keitaroCampaignId])
+}
+
+model KeitaroCampaignMapping {
+  id                  String    @id @default(cuid())
+  keitaroCampaignId   String
+  keitaroCampaignName String?
+  campaignId          String?
+  isActive            Boolean   @default(true)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  campaign Campaign? @relation(fields: [campaignId], references: [id])
+
+  @@unique([keitaroCampaignId])
+  @@index([campaignId])
+  @@index([isActive])
 }
 
 model ConversionRule {
