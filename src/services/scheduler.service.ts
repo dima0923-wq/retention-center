@@ -100,6 +100,33 @@ export class SchedulerService {
 
       // Fetch campaign once with all needed fields
       if (attempt.campaignId) {
+        // Idempotency check: skip if a non-scheduled attempt already exists
+        // for this lead+campaign+channel in the same hour (prevents duplicates)
+        const hourAgo = new Date(Date.now() - 60 * 60 * 1000);
+        const existingAttempt = await prisma.contactAttempt.findFirst({
+          where: {
+            leadId: attempt.leadId,
+            campaignId: attempt.campaignId,
+            channel: attempt.channel,
+            status: { notIn: ["SCHEDULED", "CANCELLED"] },
+            startedAt: { gte: hourAgo },
+          },
+        });
+
+        if (existingAttempt) {
+          // Already processed — mark scheduled attempt as completed to avoid re-processing
+          await prisma.contactAttempt.update({
+            where: { id: attempt.id },
+            data: {
+              status: "COMPLETED",
+              completedAt: new Date(),
+              notes: `Skipped: duplicate of attempt ${existingAttempt.id}`,
+            },
+          });
+          processed++;
+          continue;
+        }
+
         const campaign = await prisma.campaign.findUnique({
           where: { id: attempt.campaignId },
         });

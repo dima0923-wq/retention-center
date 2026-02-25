@@ -81,9 +81,7 @@ export class SequenceProcessorService {
         const since = new Date(Date.now() - lookbackMinutes * 60 * 1000);
 
         // Build lead query filters from triggerConfig
-        const leadWhere: Record<string, unknown> = {
-          createdAt: { gte: since },
-        };
+        const leadWhere: Record<string, unknown> = {};
 
         if (triggerConfig.source) {
           leadWhere.source = triggerConfig.source;
@@ -93,11 +91,15 @@ export class SequenceProcessorService {
           leadWhere.status = triggerConfig.status;
         }
 
-        // For "no_conversion" trigger, find leads without any conversion
+        // For "no_conversion" trigger, find leads older than minAgeHours with no conversions
+        // Use separate date filter so it doesn't conflict with new_lead's "since" filter
         if (sequence.triggerType === "no_conversion") {
           const minAge = (triggerConfig.minAgeHours as number) ?? 24;
           const cutoff = new Date(Date.now() - minAge * 60 * 60 * 1000);
           leadWhere.createdAt = { lte: cutoff };
+        } else {
+          // For "new_lead" trigger, only look at recently created leads
+          leadWhere.createdAt = { gte: since };
         }
 
         const matchingLeads = await prisma.lead.findMany({

@@ -361,6 +361,23 @@ export class InstantlyService {
 
     if (!lead.email) return { error: "Lead has no email address" };
 
+    // Determine the sending email account
+    let eaccount = (config as unknown as { sendingAccount?: string }).sendingAccount;
+    if (!eaccount) {
+      // Try to get the first connected account from Instantly
+      try {
+        const accountsRes = await instantlyFetch("/accounts", config.apiKey);
+        if (accountsRes.ok) {
+          const accounts = (await accountsRes.json()) as { items?: { email: string }[] };
+          if (accounts.items && accounts.items.length > 0) {
+            eaccount = accounts.items[0].email;
+          }
+        }
+      } catch {}
+    }
+    if (!eaccount) return { error: "No sending email account configured for Instantly" };
+
+    // Resolve campaign ID for tracking
     let instantlyCampaignId = config.defaultCampaignId;
     if (options?.campaignId) {
       const campaign = await prisma.campaign.findUnique({ where: { id: options.campaignId } });
@@ -372,24 +389,28 @@ export class InstantlyService {
       }
     }
 
-    const campaignId = instantlyCampaignId;
-    if (!campaignId) return { error: "No default campaign ID configured for Instantly" };
-
+    const subject = script.name || "No Subject";
     const content = script.content ? replaceVariables(script.content, lead) : "";
 
-    const res = await instantlyFetch("/leads", config.apiKey, {
+    // Use the /emails/send endpoint to actually send the email
+    const payload: Record<string, unknown> = {
+      eaccount,
+      to: lead.email,
+      subject,
+      body: {
+        html: content,
+        text: content.replace(/<[^>]*>/g, ""),
+      },
+    };
+
+    // Include campaign_id if available (for tracking in Instantly)
+    if (instantlyCampaignId) {
+      payload.campaign_id = instantlyCampaignId;
+    }
+
+    const res = await instantlyFetch("/emails/send", config.apiKey, {
       method: "POST",
-      body: JSON.stringify({
-        campaign_id: campaignId,
-        email: lead.email,
-        first_name: lead.firstName,
-        last_name: lead.lastName,
-        phone: lead.phone ?? undefined,
-        custom_variables: {
-          subject: script.name,
-          body: content,
-        },
-      }),
+      body: JSON.stringify(payload),
     });
 
     if (!res.ok) {
@@ -397,8 +418,8 @@ export class InstantlyService {
       return { error: `Instantly API error ${res.status}: ${text}` };
     }
 
-    const result = (await res.json()) as { id?: string };
-    return { providerRef: result.id ?? campaignId };
+    const result = (await res.json()) as { id?: string; message_id?: string };
+    return { providerRef: result.message_id ?? result.id ?? "sent" };
   }
 }
 
