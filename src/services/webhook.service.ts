@@ -226,10 +226,97 @@ export class WebhookService {
       return { error: "Method not allowed", status: 405 };
     }
 
+    // Facebook webhooks can batch multiple lead events in a single POST.
+    // Iterate ALL entries and ALL changes to avoid dropping leads.
+    if (webhook.type === "facebook") {
+      return this.processFacebookInbound(webhook, body);
+    }
+
+    return this.processLeadPayload(webhook, body, body);
+  }
+
+  /**
+   * Process a Facebook inbound webhook that may contain batched entries.
+   * Facebook sends: { object: "page", entry: [{ changes: [{ value: {...} }] }] }
+   * Multiple entries and changes per entry are possible during high volume.
+   */
+  private static async processFacebookInbound(
+    webhook: {
+      id: string;
+      slug: string;
+      type: string;
+      sourceLabel: string | null;
+      campaignId: string | null;
+      sequenceId: string | null;
+      fieldMapping: string | null;
+      pageAccessToken: string | null;
+    },
+    body: Record<string, unknown>
+  ): Promise<InboundResult> {
+    const entry = body.entry as Array<{
+      changes?: Array<{
+        field?: string;
+        value?: {
+          leadgen_id?: string;
+          field_data?: Array<{ name: string; values: string[] }>;
+        };
+      }>;
+    }> | undefined;
+
+    if (!entry || !Array.isArray(entry) || entry.length === 0) {
+      return { error: "Invalid Facebook webhook payload", status: 400 };
+    }
+
+    let lastResult: InboundResult = { error: "No leadgen events found", status: 400 };
+    let processedCount = 0;
+
+    for (const entryItem of entry) {
+      if (!entryItem.changes) continue;
+
+      for (const change of entryItem.changes) {
+        if (!change.value) continue;
+
+        // Build a single-entry payload for parseFacebookPayload to process
+        const singlePayload: Record<string, unknown> = {
+          entry: [{ changes: [{ value: change.value }] }],
+        };
+
+        const result = await this.processLeadPayload(webhook, singlePayload, body);
+        lastResult = result;
+        processedCount++;
+      }
+    }
+
+    // If nothing was processed, the payload structure was valid but had no changes
+    if (processedCount === 0) {
+      return { error: "Invalid Facebook webhook payload", status: 400 };
+    }
+
+    return lastResult;
+  }
+
+  /**
+   * Process a single lead payload (one lead event).
+   * Shared by Facebook (per-change) and non-Facebook (whole body) flows.
+   */
+  private static async processLeadPayload(
+    webhook: {
+      id: string;
+      slug: string;
+      type: string;
+      sourceLabel: string | null;
+      campaignId: string | null;
+      sequenceId: string | null;
+      fieldMapping: string | null;
+      pageAccessToken: string | null;
+    },
+    payload: Record<string, unknown>,
+    rawBody: Record<string, unknown>
+  ): Promise<InboundResult> {
     // Parse payload based on webhook type
     let fields: LeadFields;
     try {
-      fields = await this.extractFields(webhook, body);
+      fields = await this.extractFields(webhook, payload);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to extract fields";
       return { error: msg, status: 400 };
@@ -248,7 +335,8 @@ export class WebhookService {
       email: fields.email,
       phone: fields.phone,
       source,
-      meta: { webhookSlug: webhook.slug, webhookId: webhook.id, rawPayload: body },
+      webhookId: webhook.id,
+      meta: { webhookSlug: webhook.slug, webhookId: webhook.id, rawPayload: rawBody },
     });
 
     // Update webhook stats
@@ -297,9 +385,7 @@ export class WebhookService {
     if (!webhook) return null;
 
     const leads = await prisma.lead.findMany({
-      where: {
-        meta: { contains: webhook.id },
-      },
+      where: { webhookId: webhook.id },
       orderBy: { createdAt: "desc" },
       take: limit,
     });
@@ -554,7 +640,19 @@ export class WebhookService {
       };
 
       for (const [rawKey, rawValue] of Object.entries(rawFields)) {
-        const mappedField = commonMappings[rawKey] || commonMappings[rawKey.toLowerCase()];
+        const lowerKey = rawKey.toLowerCase();
+
+        // Split full_name / name into firstName + lastName
+        if ((lowerKey === "full_name" || lowerKey === "name") && !result.firstName) {
+          const parts = rawValue.trim().split(/\s+/);
+          result.firstName = parts[0];
+          if (parts.length > 1 && !result.lastName) {
+            result.lastName = parts.slice(1).join(" ");
+          }
+          continue;
+        }
+
+        const mappedField = commonMappings[rawKey] || commonMappings[lowerKey];
         if (mappedField && !result[mappedField]) {
           result[mappedField] = rawValue;
         }

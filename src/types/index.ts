@@ -23,6 +23,7 @@ export type LeadCreateInput = {
   externalId?: string;
   meta?: Record<string, unknown>;
   notes?: string;
+  webhookId?: string;
 };
 
 export type LeadUpdateInput = {

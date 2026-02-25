@@ -24,6 +24,14 @@ export class LeadService {
         },
       });
       if (existing) {
+        // If this lead came via a webhook and the existing lead has no webhookId, update it
+        if (input.webhookId && !existing.webhookId) {
+          const updated = await prisma.lead.update({
+            where: { id: existing.id },
+            data: { webhookId: input.webhookId },
+          });
+          return { lead: updated, deduplicated: true };
+        }
         return { lead: existing, deduplicated: true };
       }
     }
@@ -38,6 +46,7 @@ export class LeadService {
         externalId: input.externalId || null,
         meta: input.meta ? JSON.stringify(input.meta) : null,
         notes: input.notes || null,
+        webhookId: input.webhookId || null,
       },
     });
 
