@@ -8,6 +8,7 @@ import { PostmarkService } from "./postmark.service";
 import { ABTestService } from "@/services/ab-test.service";
 import { SchedulerService } from "../scheduler.service";
 import { EmailTemplateService } from "@/services/email-template.service";
+import { addChannelJob, isRedisConnected } from "@/lib/queue";
 
 // Channel priority: EMAIL first, then SMS, then CALL, then PUSH
 const CHANNEL_PRIORITY: Record<string, number> = {
@@ -112,9 +113,29 @@ export class ChannelRouterService {
     }
 
     if (!selectedScript) {
+      await prisma.contactAttempt.update({
+        where: { id: attempt.id },
+        data: { status: "FAILED", completedAt: new Date(), notes: `Script ${scriptId} not found` },
+      });
       return { error: `Script ${scriptId} not found` };
     }
 
+    // Try to enqueue via BullMQ (Redis). Falls back to direct send if unavailable.
+    if (isRedisConnected()) {
+      const enqueued = await addChannelJob(channel, {
+        attemptId: attempt.id,
+        channel,
+        leadId: lead.id,
+        scriptId: selectedScript.id,
+        campaignId: campaign.id,
+        campaignMeta: typeof campaign.meta === "string" ? campaign.meta : JSON.stringify(campaign.meta),
+      });
+      if (enqueued) {
+        return { attemptId: attempt.id };
+      }
+    }
+
+    // Fallback: direct synchronous send (original behavior)
     let result:
       | { providerRef: string }
       | { error: string };

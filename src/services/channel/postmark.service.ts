@@ -141,6 +141,80 @@ export class PostmarkService {
     return { sent, errors };
   }
 
+  /**
+   * Batch-send emails from a pre-built queue of items.
+   * Chunks into groups of 50 and calls sendEmailBatch for each chunk.
+   * Returns per-item results (success with MessageID or error string).
+   */
+  static async batchSendFromQueue(
+    items: Array<{
+      lead: Lead;
+      subject: string;
+      htmlBody: string;
+      textBody?: string | null;
+      fromEmail?: string;
+      fromName?: string;
+      tag?: string;
+    }>
+  ): Promise<Array<{ index: number; providerRef?: string; error?: string }>> {
+    const config = await getConfig();
+    if (!config) {
+      return items.map((_, i) => ({ index: i, error: "Postmark integration not configured or inactive" }));
+    }
+
+    const client = getServerClient(config);
+    const results: Array<{ index: number; providerRef?: string; error?: string }> = [];
+
+    // Build messages, tracking original index
+    const validItems: Array<{ index: number; message: postmark.Models.Message }> = [];
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (!item.lead.email) {
+        results.push({ index: i, error: "Lead has no email address" });
+        continue;
+      }
+      validItems.push({
+        index: i,
+        message: {
+          From: `${item.fromName || config.fromName || "Retention Center"} <${item.fromEmail || config.fromEmail || "noreply@example.com"}>`,
+          To: item.lead.email,
+          Subject: replaceVariables(item.subject, item.lead),
+          HtmlBody: replaceVariables(item.htmlBody, item.lead),
+          TextBody: item.textBody ? replaceVariables(item.textBody, item.lead) : undefined,
+          Tag: item.tag,
+          TrackOpens: true,
+          TrackLinks: postmark.Models.LinkTrackingOptions.HtmlAndText,
+          MessageStream: "outbound",
+        },
+      });
+    }
+
+    // Chunk into groups of 50
+    const CHUNK_SIZE = 50;
+    for (let i = 0; i < validItems.length; i += CHUNK_SIZE) {
+      const chunk = validItems.slice(i, i + CHUNK_SIZE);
+      try {
+        const batchResults = await client.sendEmailBatch(chunk.map((c) => c.message));
+        for (let j = 0; j < batchResults.length; j++) {
+          const r = batchResults[j];
+          if (r.ErrorCode === 0) {
+            results.push({ index: chunk[j].index, providerRef: r.MessageID });
+          } else {
+            results.push({ index: chunk[j].index, error: `Postmark error ${r.ErrorCode}: ${r.Message}` });
+          }
+        }
+      } catch (e) {
+        for (const c of chunk) {
+          results.push({ index: c.index, error: `Postmark batch error: ${(e as Error).message}` });
+        }
+      }
+    }
+
+    // Sort by original index for predictable output
+    results.sort((a, b) => a.index - b.index);
+    return results;
+  }
+
   static async sendEmailWithTemplate(
     lead: Lead,
     options: {

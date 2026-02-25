@@ -62,6 +62,99 @@ export class LeadService {
     return { lead, deduplicated: false };
   }
 
+  static async bulkCreateOptimized(inputs: LeadCreateInput[]) {
+    const results = { created: 0, deduplicated: 0, errors: 0 };
+    if (inputs.length === 0) return { results, createdLeadIds: [] as string[] };
+
+    // 1. Extract all emails and phones
+    const emails = inputs.map((i) => i.email).filter(Boolean) as string[];
+    const phones = inputs.map((i) => i.phone).filter(Boolean) as string[];
+
+    // 2. Batch fetch existing leads
+    const orConditions: Prisma.LeadWhereInput[] = [];
+    if (emails.length > 0) orConditions.push({ email: { in: emails } });
+    if (phones.length > 0) orConditions.push({ phone: { in: phones } });
+
+    const existingLeads =
+      orConditions.length > 0
+        ? await prisma.lead.findMany({ where: { OR: orConditions } })
+        : [];
+
+    // 3. Build dedup maps
+    const emailMap = new Map<string, (typeof existingLeads)[0]>();
+    const phoneMap = new Map<string, (typeof existingLeads)[0]>();
+    for (const lead of existingLeads) {
+      if (lead.email) emailMap.set(lead.email, lead);
+      if (lead.phone) phoneMap.set(lead.phone, lead);
+    }
+
+    // 4. Separate new vs duplicate inputs
+    const newLeadData: Prisma.LeadCreateManyInput[] = [];
+    const webhookUpdates: { id: string; webhookId: string }[] = [];
+
+    for (const input of inputs) {
+      try {
+        // Match logic mirrors create(): both > email > phone
+        let existing = null;
+        if (input.email && input.phone) {
+          const byEmail = emailMap.get(input.email);
+          if (byEmail && byEmail.phone === input.phone) {
+            existing = byEmail;
+          } else if (byEmail) {
+            existing = byEmail;
+          }
+        } else if (input.email) {
+          existing = emailMap.get(input.email) || null;
+        } else if (input.phone) {
+          existing = phoneMap.get(input.phone) || null;
+        }
+
+        if (existing) {
+          results.deduplicated++;
+          if (input.webhookId && !existing.webhookId) {
+            webhookUpdates.push({ id: existing.id, webhookId: input.webhookId });
+          }
+        } else {
+          newLeadData.push({
+            firstName: input.firstName,
+            lastName: input.lastName,
+            phone: input.phone || null,
+            email: input.email || null,
+            source: (input.source as string) || "MANUAL",
+            externalId: input.externalId || null,
+            meta: input.meta ? JSON.stringify(input.meta) : null,
+            notes: input.notes || null,
+            webhookId: input.webhookId || null,
+          });
+        }
+      } catch {
+        results.errors++;
+      }
+    }
+
+    // 5. Batch create new leads
+    let createdLeadIds: string[] = [];
+    if (newLeadData.length > 0) {
+      // createMany doesn't return records in SQLite, so we create individually in a transaction
+      const created = await prisma.$transaction(
+        newLeadData.map((data) => prisma.lead.create({ data }))
+      );
+      createdLeadIds = created.map((l) => l.id);
+      results.created = created.length;
+    }
+
+    // 6. Batch update webhookIds for deduped leads
+    if (webhookUpdates.length > 0) {
+      await prisma.$transaction(
+        webhookUpdates.map((u) =>
+          prisma.lead.update({ where: { id: u.id }, data: { webhookId: u.webhookId } })
+        )
+      );
+    }
+
+    return { results, createdLeadIds };
+  }
+
   static async bulkCreate(inputs: LeadCreateInput[]) {
     const results = { created: 0, deduplicated: 0, errors: 0 };
 

@@ -125,6 +125,8 @@ model ContactAttempt {
   @@index([leadId])
   @@index([channel])
   @@index([campaignId])
+  @@index([status])
+  @@index([status, startedAt])
 }
 
 model IntegrationConfig {

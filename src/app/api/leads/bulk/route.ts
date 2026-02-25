@@ -20,23 +20,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create leads individually (handles deduplication)
-    const createdLeadIds: string[] = [];
-    const results = { created: 0, deduplicated: 0, errors: 0 };
-
-    for (const input of parsed.data.leads) {
-      try {
-        const result = await LeadService.create(input);
-        if (result.deduplicated) {
-          results.deduplicated++;
-        } else {
-          results.created++;
-          createdLeadIds.push(result.lead.id);
-        }
-      } catch {
-        results.errors++;
-      }
-    }
+    // Batch create with optimized dedup (single query for existing check)
+    const { results, createdLeadIds } = await LeadService.bulkCreateOptimized(parsed.data.leads);
 
     // If campaignId provided, assign all created leads to that campaign
     if (campaignId && typeof campaignId === "string" && createdLeadIds.length > 0) {
