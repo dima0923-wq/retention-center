@@ -186,9 +186,16 @@ export class CampaignService {
   static async delete(id: string) {
     const campaign = await prisma.campaign.findUnique({ where: { id } });
     if (!campaign) return null;
-    if (campaign.status !== "DRAFT") {
-      throw new Error("Only draft campaigns can be deleted");
+    if (campaign.status === "COMPLETED") {
+      throw new Error("Completed campaigns cannot be deleted");
     }
+    if (campaign.status === "ACTIVE") {
+      throw new Error("Active campaigns cannot be deleted — pause the campaign first");
+    }
+
+    // Cancel any pending contact attempts before deleting
+    await ChannelRouterService.cancelPendingAttempts(id);
+
     return prisma.campaign.delete({ where: { id } });
   }
 

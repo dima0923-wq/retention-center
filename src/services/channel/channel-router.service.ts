@@ -26,6 +26,11 @@ export class ChannelRouterService {
     channel: string,
     overrideScriptId?: string
   ): Promise<{ attemptId: string } | { error: string }> {
+    // Check DO_NOT_CONTACT preference — skip routing entirely
+    if (lead.status === "DO_NOT_CONTACT") {
+      return { error: `Lead ${lead.id} has DO_NOT_CONTACT status — skipping` };
+    }
+
     // Check per-lead contact limit
     const meta = campaign.meta ? JSON.parse(campaign.meta as string) : {};
     const maxContacts = meta.maxContactsPerLead ?? DEFAULT_MAX_CONTACTS_PER_LEAD;

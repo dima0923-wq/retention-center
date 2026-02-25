@@ -60,7 +60,7 @@ export async function DELETE(_req: NextRequest, context: RouteContext) {
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
     const message = error instanceof Error ? error.message : "Internal server error";
-    const status = message.includes("Only draft") ? 400 : 500;
+    const status = message.includes("cannot be deleted") ? 400 : 500;
     console.error("DELETE /api/campaigns/[id] error:", error);
     return NextResponse.json({ error: message }, { status });
   }

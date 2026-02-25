@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { jwtVerify } from "jose";
 
 const AUTH_CENTER_URL = "https://ag4.q37fh758g.click";
 const SELF_URL = "https://ag2.q37fh758g.click";
+
+const jwtSecret = process.env.JWT_SECRET;
+const JWT_SECRET = jwtSecret
+  ? new TextEncoder().encode(jwtSecret)
+  : null;
 
 const PUBLIC_PATHS = [
   "/health",
@@ -16,7 +22,7 @@ const PUBLIC_PATHS = [
   "/api/vapi-calls/auto-sync",
 ];
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
@@ -38,15 +44,33 @@ export function middleware(request: NextRequest) {
     tokenValue.length > 20;
 
   if (isValidFormat) {
-    // Check project claim in JWT payload
-    try {
-      const payload = JSON.parse(atob(tokenValue.split('.')[1]));
-      if (payload.project && payload.project !== 'retention_center') {
-        // Wrong project — clear stale cookie and redirect to Auth Center for fresh token
+    // Verify JWT signature if secret is available
+    if (JWT_SECRET) {
+      try {
+        const { payload } = await jwtVerify(tokenValue, JWT_SECRET, {
+          issuer: "auth-center",
+        });
+
+        // Check project claim
+        if (payload.project && payload.project !== "retention_center") {
+          if (pathname.startsWith("/api/")) {
+            return NextResponse.json(
+              { error: "Access denied: not authorized for this project" },
+              { status: 403 }
+            );
+          }
+          const callbackUrl = `${SELF_URL}/auth/token`;
+          const loginUrl = `${AUTH_CENTER_URL}/login?redirect_url=${encodeURIComponent(callbackUrl)}`;
+          const response = NextResponse.redirect(loginUrl);
+          response.cookies.delete("ac_access");
+          return response;
+        }
+      } catch {
+        // Signature verification failed — token is forged or expired
         if (pathname.startsWith("/api/")) {
           return NextResponse.json(
-            { error: "Access denied: not authorized for this project" },
-            { status: 403 }
+            { error: "Invalid or expired token" },
+            { status: 401 }
           );
         }
         const callbackUrl = `${SELF_URL}/auth/token`;
@@ -55,8 +79,26 @@ export function middleware(request: NextRequest) {
         response.cookies.delete("ac_access");
         return response;
       }
-    } catch {
-      // If JWT decode fails, let it pass — Auth Center will verify properly
+    } else {
+      // Fallback: no JWT_SECRET configured — decode-only project check (legacy)
+      try {
+        const payload = JSON.parse(atob(tokenValue.split('.')[1]));
+        if (payload.project && payload.project !== 'retention_center') {
+          if (pathname.startsWith("/api/")) {
+            return NextResponse.json(
+              { error: "Access denied: not authorized for this project" },
+              { status: 403 }
+            );
+          }
+          const callbackUrl = `${SELF_URL}/auth/token`;
+          const loginUrl = `${AUTH_CENTER_URL}/login?redirect_url=${encodeURIComponent(callbackUrl)}`;
+          const response = NextResponse.redirect(loginUrl);
+          response.cookies.delete("ac_access");
+          return response;
+        }
+      } catch {
+        // If JWT decode fails, let it pass — Auth Center API will verify
+      }
     }
 
     const response = NextResponse.next();
