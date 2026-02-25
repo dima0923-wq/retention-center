@@ -23,6 +23,7 @@ import {
   MessageSquare,
   MailOpen,
   Smartphone,
+  Webhook,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
@@ -36,10 +37,12 @@ const navItems = [
   { label: "Scripts", href: "/scripts", icon: FileText },
   { label: "Email Templates", href: "/email-templates", icon: Mail },
   { label: "Integrations", href: "/integrations", icon: Plug },
+  { label: "Webhooks", href: "/webhooks", icon: Webhook },
   { label: "PWA", href: "/pwa", icon: Smartphone },
   { label: "Send a test", href: "/test-send", icon: FlaskConical },
   { label: "VAPI Dashboard", href: "/vapi-calls", icon: Headphones },
   { label: "SMS Stats", href: "/sms-stats", icon: MessageSquare },
+  { label: "Delivery Log", href: "/sms-delivery-log", icon: Phone },
   { label: "Email Stats", href: "/email-stats", icon: MailOpen },
   { label: "Conversions", href: "/conversions", icon: Target },
   { label: "Learning", href: "/learning", icon: GraduationCap },

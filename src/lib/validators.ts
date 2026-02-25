@@ -5,7 +5,7 @@ export const leadCreateSchema = z.object({
   lastName: z.string().min(1, "Last name is required"),
   phone: z.string().optional(),
   email: z.string().email().optional().transform(v => (!v || v.trim() === "") ? undefined : v),
-  source: z.enum(["META", "MANUAL", "API"]).default("MANUAL"),
+  source: z.enum(["META", "MANUAL", "API", "WEBHOOK"]).default("MANUAL"),
   externalId: z.string().optional(),
   meta: z.record(z.string(), z.unknown()).optional(),
   notes: z.string().optional(),
@@ -23,7 +23,7 @@ export const leadUpdateSchema = z.object({
 export const leadFiltersSchema = z.object({
   search: z.string().optional(),
   status: z.enum(["NEW", "CONTACTED", "IN_PROGRESS", "CONVERTED", "LOST", "DO_NOT_CONTACT"]).optional(),
-  source: z.enum(["META", "MANUAL", "API"]).optional(),
+  source: z.enum(["META", "MANUAL", "API", "WEBHOOK"]).optional(),
   scoreLabel: z.enum(["HOT", "WARM", "COLD", "DEAD", "NEW"]).optional(),
   dateFrom: z.string().optional(),
   dateTo: z.string().optional(),
@@ -48,7 +48,7 @@ export const emailSequenceStepSchema = z.object({
 // Auto-assignment schema
 export const autoAssignSchema = z.object({
   enabled: z.boolean(),
-  sources: z.array(z.enum(["META", "API", "MANUAL", "BULK"])).optional(),
+  sources: z.array(z.enum(["META", "API", "MANUAL", "BULK", "WEBHOOK"])).optional(),
   maxLeads: z.number().int().min(1).optional(),
   executionMode: z.enum(["parallel", "sequential"]).optional(),
 });
@@ -274,4 +274,42 @@ export const conversionRuleCreateSchema = z.object({
   condition: z.string().min(1),
   value: z.string().min(1),
   score: z.number(),
+});
+
+// ─── Webhook Validators ──────────────────────────────────────────────────────
+
+export const webhookCreateSchema = z.object({
+  name: z.string().min(1, "Webhook name is required").max(200),
+  type: z.enum(["zapier", "facebook", "generic"]).default("generic"),
+  sourceLabel: z.string().min(1, "Source label is required").max(50),
+  isActive: z.boolean().default(true),
+  verifyToken: z.string().optional(),
+  pageAccessToken: z.string().optional(),
+  config: z.record(z.string(), z.unknown()).optional(),
+  campaignId: z.string().optional(),
+  sequenceId: z.string().optional(),
+  fieldMapping: z.record(z.string(), z.string()).optional(),
+});
+
+export const webhookUpdateSchema = z.object({
+  name: z.string().min(1).max(200).optional(),
+  type: z.enum(["zapier", "facebook", "generic"]).optional(),
+  sourceLabel: z.string().min(1).max(50).optional(),
+  isActive: z.boolean().optional(),
+  verifyToken: z.string().nullable().optional(),
+  pageAccessToken: z.string().nullable().optional(),
+  config: z.record(z.string(), z.unknown()).optional(),
+  campaignId: z.string().nullable().optional(),
+  sequenceId: z.string().nullable().optional(),
+  fieldMapping: z.record(z.string(), z.string()).optional(),
+});
+
+export const webhookFiltersSchema = z.object({
+  search: z.string().optional(),
+  type: z.enum(["zapier", "facebook", "generic"]).optional(),
+  isActive: z.enum(["true", "false"]).transform(v => v === "true").optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  sortBy: z.enum(["createdAt", "updatedAt", "name", "type", "leadCount"]).default("createdAt"),
+  sortOrder: z.enum(["asc", "desc"]).default("desc"),
 });

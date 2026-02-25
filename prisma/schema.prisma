@@ -24,16 +24,20 @@ model Lead {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
+  webhookId   String?
+
   campaignLeads        CampaignLead[]
   contactAttempts      ContactAttempt[]
   sequenceEnrollments  SequenceEnrollment[]
   conversions          Conversion[]
+  webhook              Webhook?  @relation(fields: [webhookId], references: [id], onDelete: SetNull)
 
   @@index([email])
   @@index([phone])
   @@index([status])
   @@index([score])
   @@index([scoreLabel])
+  @@index([webhookId])
 }
 
 model Campaign {
@@ -54,6 +58,7 @@ model Campaign {
   abTests         ABTest[]
   conversions     Conversion[]
   zapierConfigs   ZapierWebhookConfig[]
+  webhooks        Webhook[]
 
   @@index([status])
 }
@@ -115,6 +120,7 @@ model ContactAttempt {
 
   stepExecutions SequenceStepExecution[]
   conversions    Conversion[]
+  deliveryEvents SmsDeliveryEvent[]
 
   @@index([leadId])
   @@index([channel])
@@ -206,6 +212,7 @@ model RetentionSequence {
   steps       SequenceStep[]
   enrollments SequenceEnrollment[]
   zapierConfigs ZapierWebhookConfig[]
+  webhooks      Webhook[]
 
   @@index([status])
   @@index([triggerType])
@@ -367,4 +374,55 @@ model VapiCallLog {
   @@index([vapiCallId])
   @@index([eventType])
   @@index([createdAt])
+}
+
+// ─── SMS Delivery Event Models ──────────────────────────────────────────────
+
+model SmsDeliveryEvent {
+  id                String   @id @default(cuid())
+  contactAttemptId  String?
+  providerRef       String
+  provider          String
+  status            String   // normalized: SENT | DELIVERED | FAILED | UNDELIVERED | PENDING | UNKNOWN
+  rawStatus         String   // original status string from provider
+  rawPayload        String   @default("{}") // full JSON webhook payload
+  senderIp          String?  // IP of webhook caller for audit
+  receivedAt        DateTime @default(now())
+
+  contactAttempt    ContactAttempt? @relation(fields: [contactAttemptId], references: [id], onDelete: SetNull)
+
+  @@index([contactAttemptId])
+  @@index([providerRef])
+  @@index([receivedAt])
+  @@index([status])
+}
+
+// ─── Webhook Models ─────────────────────────────────────────────────────────
+
+model Webhook {
+  id               String    @id @default(cuid())
+  name             String
+  slug             String    @unique
+  type             String    @default("generic") // zapier | facebook | generic
+  sourceLabel      String    // stored on Lead.source, e.g. "ZAPIER_IT", "FB_MAIN"
+  isActive         Boolean   @default(true)
+  verifyToken      String?   // for Facebook webhook verification
+  pageAccessToken  String?   // for Facebook Lead Ads API calls
+  config           String    @default("{}") // JSON: campaign routing, sequence enrollment, channel configs
+  campaignId       String?   // auto-assign leads to this campaign
+  sequenceId       String?   // auto-enroll leads in this sequence
+  fieldMapping     String    @default("{}") // JSON: maps incoming field names to Lead fields
+  lastReceivedAt   DateTime?
+  leadCount        Int       @default(0)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  campaign  Campaign?          @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  sequence  RetentionSequence? @relation(fields: [sequenceId], references: [id], onDelete: SetNull)
+  leads     Lead[]
+
+  @@index([type])
+  @@index([isActive])
+  @@index([campaignId])
+  @@index([sequenceId])
 }
