@@ -111,8 +111,9 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Also run general lead routing for additional campaign matching
-    if (!result.deduplicated) {
+    // Run general lead routing only if zapierConfig didn't already handle it
+    // (avoids duplicate contact attempts and double sequence enrollment)
+    if (!result.deduplicated && !zapierConfig) {
       LeadRouterService.routeNewLead(result.lead.id).catch((err) => {
         console.error("Lead auto-routing failed:", err);
       });

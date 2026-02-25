@@ -9,7 +9,6 @@ import type {
   LeadStats,
 } from "@/types";
 import type { Prisma } from "@/generated/prisma/client";
-import { MetaCapiService } from "@/services/meta-capi.service";
 
 export class LeadService {
   static async create(input: LeadCreateInput) {
@@ -50,12 +49,8 @@ export class LeadService {
       },
     });
 
-    // Send Meta CAPI event for META-sourced leads
-    if (input.source === "META") {
-      MetaCapiService.sendLeadEvent(lead).catch((err) => {
-        console.error("Meta CAPI lead event failed:", err);
-      });
-    }
+    // Meta CAPI Lead events are sent by the meta webhook route directly
+    // (where fbc/fbp attribution params are available), not here.
 
     return { lead, deduplicated: false };
   }
