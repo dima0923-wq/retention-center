@@ -114,6 +114,42 @@ export class VapiSyncService {
       synced++;
     }
 
-    return { synced, total: calls.length };
+    // Second pass: re-sync calls stuck in non-terminal statuses
+    const pendingCalls = await prisma.vapiCall.findMany({
+      where: {
+        status: { in: ["ringing", "in-progress", "queued", "scheduled"] },
+      },
+      select: { vapiCallId: true },
+      take: 50,
+    });
+
+    for (const pending of pendingCalls) {
+      try {
+        const callRes = await fetch(
+          `https://api.vapi.ai/call/${pending.vapiCallId}`,
+          { headers: { Authorization: `Bearer ${apiKey}` } }
+        );
+        if (!callRes.ok) continue;
+
+        const callData = (await callRes.json()) as VapiApiCall;
+        const mapped = mapCallData(callData);
+
+        const attempt = await prisma.contactAttempt.findFirst({
+          where: { providerRef: pending.vapiCallId },
+          select: { id: true },
+        });
+        if (attempt) mapped.contactAttemptId = attempt.id;
+
+        await prisma.vapiCall.update({
+          where: { vapiCallId: pending.vapiCallId },
+          data: mapped,
+        });
+        synced++;
+      } catch {
+        // Skip individual call failures
+      }
+    }
+
+    return { synced, total: calls.length + pendingCalls.length };
   }
 }

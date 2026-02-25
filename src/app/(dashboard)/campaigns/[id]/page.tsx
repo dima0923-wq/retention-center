@@ -12,7 +12,15 @@ import { InstantlyStats, InstantlyStatsData } from "@/components/campaigns/Insta
 import { ZapierConfigCard } from "@/components/campaigns/ZapierConfigCard";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { Pencil, Play, Pause, CheckCircle, Users, TrendingUp, BarChart3, Zap, Phone } from "lucide-react";
+import { Pencil, Play, Pause, CheckCircle, Users, TrendingUp, BarChart3, Zap, Phone, Trash2, Send, MailOpen, MousePointerClick, AlertTriangle, ShieldAlert } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 
 type VapiConfig = {
@@ -71,7 +79,19 @@ export default function CampaignDetailPage() {
   const [instantlyStatus, setInstantlyStatus] = useState<"active" | "paused" | "not_synced">("not_synced");
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
   const [instantlyLoading, setInstantlyLoading] = useState(false);
+  const [postmarkStats, setPostmarkStats] = useState<{
+    Sent: number;
+    Opens: number;
+    UniqueOpens: number;
+    Clicks: number;
+    UniqueClicks: number;
+    Bounced: number;
+    SpamComplaints: number;
+  } | null>(null);
+  const [postmarkLoading, setPostmarkLoading] = useState(false);
   const [vapiAssistantName, setVapiAssistantName] = useState<string | null>(null);
 
   const fetchInstantlyStats = useCallback(async () => {
@@ -105,6 +125,16 @@ export default function CampaignDetailPage() {
 
       if (campData.channels?.includes("EMAIL") && campData.instantlySync) {
         fetchInstantlyStats();
+      }
+
+      // Fetch PostMark stats for EMAIL campaigns
+      if (campData.channels?.includes("EMAIL")) {
+        fetch("/api/integrations/postmark/stats", { credentials: "include" })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((data) => {
+            if (data?.overview) setPostmarkStats(data.overview);
+          })
+          .catch(() => {});
       }
     } catch (err) {
       console.error("Failed to fetch campaign:", err);
@@ -151,6 +181,27 @@ export default function CampaignDetailPage() {
       toast.error(error instanceof Error ? error.message : "Action failed");
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    setDeleteLoading(true);
+    try {
+      const res = await fetch(`/api/campaigns/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error ?? "Failed to delete campaign");
+      }
+      toast.success("Campaign deleted");
+      router.push("/campaigns");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to delete campaign");
+    } finally {
+      setDeleteLoading(false);
+      setDeleteDialogOpen(false);
     }
   };
 
@@ -324,6 +375,16 @@ export default function CampaignDetailPage() {
               </Button>
             </Link>
           )}
+          {campaign.status !== "COMPLETED" && (
+            <Button
+              variant="destructive"
+              onClick={() => setDeleteDialogOpen(true)}
+              disabled={actionLoading}
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete
+            </Button>
+          )}
         </div>
       </div>
 
@@ -375,6 +436,76 @@ export default function CampaignDetailPage() {
               isLoading={instantlyLoading}
               instantlyStatus={instantlyStatus}
             />
+          </CardContent>
+        </Card>
+      )}
+
+      {hasEmailChannel && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold">PostMark Email Stats</h3>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={postmarkLoading}
+                  onClick={async () => {
+                    setPostmarkLoading(true);
+                    try {
+                      const r = await fetch("/api/integrations/postmark/stats", { credentials: "include" });
+                      if (r.ok) {
+                        const data = await r.json();
+                        if (data?.overview) setPostmarkStats(data.overview);
+                        toast.success("PostMark stats refreshed");
+                      }
+                    } catch {
+                      toast.error("Failed to fetch PostMark stats");
+                    } finally {
+                      setPostmarkLoading(false);
+                    }
+                  }}
+                >
+                  <BarChart3 className="mr-2 h-4 w-4" />
+                  Refresh
+                </Button>
+              </div>
+
+              {!postmarkStats ? (
+                <p className="text-sm text-muted-foreground py-4">
+                  No PostMark stats available. Make sure PostMark integration is configured.
+                </p>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                  {[
+                    { label: "Sent", value: postmarkStats.Sent, icon: Send, color: "text-blue-500" },
+                    { label: "Opens", value: postmarkStats.Opens, icon: MailOpen, color: "text-green-500" },
+                    { label: "Clicks", value: postmarkStats.Clicks, icon: MousePointerClick, color: "text-amber-500" },
+                    { label: "Bounced", value: postmarkStats.Bounced, icon: AlertTriangle, color: "text-red-500" },
+                    { label: "Spam", value: postmarkStats.SpamComplaints, icon: ShieldAlert, color: "text-red-600" },
+                  ].map((card) => {
+                    const Icon = card.icon;
+                    const rate = postmarkStats.Sent > 0 ? ((card.value / postmarkStats.Sent) * 100).toFixed(1) : "0.0";
+                    return (
+                      <Card key={card.label}>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-4">
+                          <CardTitle className="text-xs font-medium text-muted-foreground">
+                            {card.label}
+                          </CardTitle>
+                          <Icon className={`h-4 w-4 ${card.color}`} />
+                        </CardHeader>
+                        <CardContent className="px-4 pb-3">
+                          <div className="text-xl font-bold">{card.value}</div>
+                          <p className="text-xs text-muted-foreground">
+                            {card.label === "Sent" ? "" : `${rate}%`}
+                          </p>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
       )}
@@ -451,6 +582,27 @@ export default function CampaignDetailPage() {
           />
         </CardContent>
       </Card>
+
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Campaign</DialogTitle>
+            <DialogDescription>
+              {campaign.status === "ACTIVE" || campaign.status === "PAUSED"
+                ? `This campaign is currently ${campaign.status.toLowerCase()} and may have active leads. Deleting it cannot be undone. Are you sure?`
+                : "Are you sure you want to delete this campaign? This action cannot be undone."}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)} disabled={deleteLoading}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={deleteLoading}>
+              {deleteLoading ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

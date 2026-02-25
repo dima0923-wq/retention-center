@@ -45,6 +45,8 @@ export type VapiWebhookPayload = {
     transcript?: string;
     messages?: Array<{ role: string; content: string }>;
   };
+  // end-of-call-report sends endedReason at the message level
+  endedReason?: string;
   // speech-update fields
   role?: string;
   status?: string; // "started" | "stopped"
@@ -385,7 +387,7 @@ export class VapiService {
       customerName: call.customer?.name ?? null,
       duration: call.duration ?? null,
       cost: call.cost ?? null,
-      endedReason: call.endedReason ?? null,
+      endedReason: call.endedReason ?? data.endedReason ?? null,
       transcript: transcript ?? null,
       messages: messages ? JSON.stringify(messages) : null,
       recordingUrl,

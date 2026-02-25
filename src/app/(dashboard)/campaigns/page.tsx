@@ -13,6 +13,15 @@ import {
 } from "@/components/ui/select";
 import { CampaignCard } from "@/components/campaigns/CampaignCard";
 import { Plus, Search } from "lucide-react";
+import { toast } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 type Campaign = {
   id: string;
@@ -40,6 +49,8 @@ export default function CampaignsPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   const fetchCampaigns = useCallback(async () => {
     setLoading(true);
@@ -59,6 +70,28 @@ export default function CampaignsPage() {
       setLoading(false);
     }
   }, [page, search, statusFilter]);
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleteLoading(true);
+    try {
+      const res = await fetch(`/api/campaigns/${deleteTarget}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error ?? "Failed to delete campaign");
+      }
+      toast.success("Campaign deleted");
+      fetchCampaigns();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to delete campaign");
+    } finally {
+      setDeleteLoading(false);
+      setDeleteTarget(null);
+    }
+  };
 
   useEffect(() => {
     fetchCampaigns();
@@ -130,7 +163,7 @@ export default function CampaignsPage() {
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {campaigns.data.map((campaign) => (
-              <CampaignCard key={campaign.id} campaign={campaign} />
+              <CampaignCard key={campaign.id} campaign={campaign} onDelete={setDeleteTarget} />
             ))}
           </div>
 
@@ -159,6 +192,29 @@ export default function CampaignsPage() {
           )}
         </>
       )}
+      <Dialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Campaign</DialogTitle>
+            <DialogDescription>
+              {(() => {
+                const target = campaigns?.data.find((c) => c.id === deleteTarget);
+                return target && (target.status === "ACTIVE" || target.status === "PAUSED")
+                  ? `This campaign is currently ${target.status.toLowerCase()} and may have active leads. Deleting it cannot be undone. Are you sure?`
+                  : "Are you sure you want to delete this campaign? This action cannot be undone.";
+              })()}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleteLoading}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={deleteLoading}>
+              {deleteLoading ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

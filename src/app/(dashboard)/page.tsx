@@ -18,7 +18,6 @@ import {
   MessageSquareReply,
   AlertTriangle,
   CheckCircle2,
-  XCircle,
   DollarSign,
   Target,
   Percent,
@@ -98,7 +97,6 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<OverviewStats | null>(null);
   const [timeline, setTimeline] = useState<TimelineData[]>([]);
   const [emailStats, setEmailStats] = useState<EmailStats | null>(null);
-  const [instantlyConnected, setInstantlyConnected] = useState<boolean | null>(null);
   const [recentEmails, setRecentEmails] = useState<EmailActivity[]>([]);
   const [conversionStats, setConversionStats] = useState<ConversionStats | null>(null);
   const [seqStats, setSeqStats] = useState<SequenceDashboardStats | null>(null);
@@ -106,6 +104,15 @@ export default function DashboardPage() {
     total: number;
     distribution: Record<string, number>;
     avgScore: number;
+  } | null>(null);
+  const [postmarkStats, setPostmarkStats] = useState<{
+    Sent: number;
+    Opens: number;
+    UniqueOpens: number;
+    Clicks: number;
+    UniqueClicks: number;
+    Bounced: number;
+    SpamComplaints: number;
   } | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -130,12 +137,20 @@ export default function DashboardPage() {
           if (emailRes.ok) {
             const data = await emailRes.json();
             setEmailStats(data);
-            setInstantlyConnected(true);
-          } else {
-            setInstantlyConnected(false);
           }
         } catch {
-          setInstantlyConnected(false);
+          // silently ignore
+        }
+
+        // Fetch PostMark stats
+        try {
+          const postmarkRes = await fetch("/api/integrations/postmark/stats", { credentials: "include" });
+          if (postmarkRes.ok) {
+            const data = await postmarkRes.json();
+            if (data?.overview) setPostmarkStats(data.overview);
+          }
+        } catch {
+          // silently ignore
         }
 
         // Fetch recent email contact attempts
@@ -212,25 +227,42 @@ export default function DashboardPage() {
     },
   ];
 
+  const instantlySent = emailStats?.totalSent ?? 0;
+  const postmarkSent = postmarkStats?.Sent ?? 0;
+  const totalEmailsSent = instantlySent + postmarkSent;
+
+  const postmarkOpenRate = postmarkSent > 0
+    ? Number(((postmarkStats!.UniqueOpens / postmarkSent) * 100).toFixed(1))
+    : 0;
+  const postmarkBounceRate = postmarkSent > 0
+    ? Number(((postmarkStats!.Bounced / postmarkSent) * 100).toFixed(1))
+    : 0;
+
   const emailStatCards = [
     {
       title: "Total Emails Sent",
-      value: emailStats?.totalSent ?? 0,
+      value: totalEmailsSent,
+      subtitle: postmarkSent > 0 ? `Instantly: ${instantlySent} · PostMark: ${postmarkSent}` : undefined,
       icon: Mail,
     },
     {
       title: "Open Rate",
-      value: `${emailStats?.openRate ?? 0}%`,
+      value: postmarkSent > 0
+        ? `Inst: ${emailStats?.openRate ?? 0}% / PM: ${postmarkOpenRate}%`
+        : `${emailStats?.openRate ?? 0}%`,
       icon: MailOpen,
     },
     {
       title: "Reply Rate",
       value: `${emailStats?.replyRate ?? 0}%`,
+      subtitle: "Instantly only",
       icon: MessageSquareReply,
     },
     {
       title: "Bounce Rate",
-      value: `${emailStats?.bounceRate ?? 0}%`,
+      value: postmarkSent > 0
+        ? `Inst: ${emailStats?.bounceRate ?? 0}% / PM: ${postmarkBounceRate}%`
+        : `${emailStats?.bounceRate ?? 0}%`,
       icon: AlertTriangle,
     },
   ];
@@ -483,18 +515,8 @@ export default function DashboardPage() {
       <div>
         <div className="flex items-center gap-3 mb-4">
           <h2 className="text-lg font-semibold">Email Campaign Stats</h2>
-          {instantlyConnected !== null && (
-            <Badge
-              variant={instantlyConnected ? "default" : "destructive"}
-              className="flex items-center gap-1"
-            >
-              {instantlyConnected ? (
-                <CheckCircle2 className="h-3 w-3" />
-              ) : (
-                <XCircle className="h-3 w-3" />
-              )}
-              Instantly {instantlyConnected ? "Connected" : "Disconnected"}
-            </Badge>
+          {postmarkStats && (
+            <Badge variant="outline" className="text-xs">Instantly + PostMark</Badge>
           )}
         </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -510,6 +532,9 @@ export default function DashboardPage() {
                 <div className="text-2xl font-bold">
                   {loading ? "..." : stat.value}
                 </div>
+                {"subtitle" in stat && stat.subtitle && (
+                  <p className="text-xs text-muted-foreground mt-1">{stat.subtitle}</p>
+                )}
               </CardContent>
             </Card>
           ))}

@@ -37,7 +37,10 @@ export async function POST(req: NextRequest) {
           customerNumber: payload.call?.customer?.number ?? null,
           customerName: payload.call?.customer?.name ?? null,
         },
-        update: {}, // don't overwrite on log-only insert
+        update: {
+          status: callStatus ?? undefined,
+          endedReason: (payload.call?.endedReason ?? payload.endedReason) || undefined,
+        },
       });
 
       await prisma.vapiCallLog.create({

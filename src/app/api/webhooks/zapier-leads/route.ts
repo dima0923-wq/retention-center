@@ -1,21 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
+import { timingSafeEqual as _timingSafeEqual } from "crypto";
 import { LeadService } from "@/services/lead.service";
 import { LeadRouterService } from "@/services/lead-router.service";
 import { RetentionSequenceService } from "@/services/retention-sequence.service";
 import { ChannelRouterService } from "@/services/channel/channel-router.service";
 import { prisma } from "@/lib/db";
 
+/** Constant-time string comparison to prevent timing attacks */
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  return _timingSafeEqual(Buffer.from(a), Buffer.from(b));
+}
+
 export async function POST(req: NextRequest) {
   try {
-    // API key auth
+    // Webhook secret validation (mandatory)
     const webhookSecret = process.env.ZAPIER_WEBHOOK_SECRET;
     if (!webhookSecret) {
-      console.warn("[SECURITY] ZAPIER_WEBHOOK_SECRET not set — webhook is unauthenticated");
-    } else {
-      const providedSecret = req.headers.get("x-webhook-secret");
-      if (providedSecret !== webhookSecret) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-      }
+      console.error("[SECURITY] ZAPIER_WEBHOOK_SECRET not set — rejecting all requests");
+      return NextResponse.json({ error: "Webhook not configured" }, { status: 503 });
+    }
+    const providedSecret = req.headers.get("x-webhook-secret") || req.nextUrl.searchParams.get("secret");
+    if (!providedSecret || !timingSafeEqual(webhookSecret, providedSecret)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const body = await req.json();
