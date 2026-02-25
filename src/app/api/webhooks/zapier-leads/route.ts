@@ -7,9 +7,11 @@ import { prisma } from "@/lib/db";
 
 export async function POST(req: NextRequest) {
   try {
-    // Optional API key auth
+    // API key auth
     const webhookSecret = process.env.ZAPIER_WEBHOOK_SECRET;
-    if (webhookSecret) {
+    if (!webhookSecret) {
+      console.warn("[SECURITY] ZAPIER_WEBHOOK_SECRET not set — webhook is unauthenticated");
+    } else {
       const providedSecret = req.headers.get("x-webhook-secret");
       if (providedSecret !== webhookSecret) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

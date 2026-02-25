@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { ABTestService } from "@/services/ab-test.service";
 import { RetentionSequenceService } from "@/services/retention-sequence.service";
 import { MetaCapiService } from "@/services/meta-capi.service";
+import { LeadScoringService } from "@/services/lead-scoring.service";
 
 interface KeitaroParams {
   sub_id?: string;
@@ -114,6 +115,11 @@ async function handlePostback(params: KeitaroParams): Promise<{ id: string } | N
         data: { status: "CONVERTED" },
       });
 
+      // Recalculate score immediately (will be 100/HOT for CONVERTED status)
+      LeadScoringService.calculateScore(leadId).catch((err) => {
+        console.error("Score recalculation failed after conversion:", err);
+      });
+
       // Auto-complete all active sequence enrollments for this lead
       RetentionSequenceService.markConverted(leadId).catch((err) => {
         console.error("Failed to mark sequence enrollments as converted:", err);
@@ -122,6 +128,11 @@ async function handlePostback(params: KeitaroParams): Promise<{ id: string } | N
       await prisma.lead.update({
         where: { id: leadId },
         data: { status: "REJECTED" },
+      });
+
+      // Recalculate score for rejected leads
+      LeadScoringService.calculateScore(leadId).catch((err) => {
+        console.error("Score recalculation failed after rejection:", err);
       });
     }
   }
@@ -132,7 +143,9 @@ async function handlePostback(params: KeitaroParams): Promise<{ id: string } | N
 export async function GET(req: NextRequest) {
   const secret = req.nextUrl.searchParams.get("secret") || req.headers.get("x-webhook-secret");
   const expectedSecret = process.env.KEITARO_WEBHOOK_SECRET;
-  if (expectedSecret && secret !== expectedSecret) {
+  if (!expectedSecret) {
+    console.warn("[SECURITY] KEITARO_WEBHOOK_SECRET not set — webhook is unauthenticated");
+  } else if (secret !== expectedSecret) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -157,7 +170,9 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const secret = req.nextUrl.searchParams.get("secret") || req.headers.get("x-webhook-secret");
   const expectedSecret = process.env.KEITARO_WEBHOOK_SECRET;
-  if (expectedSecret && secret !== expectedSecret) {
+  if (!expectedSecret) {
+    console.warn("[SECURITY] KEITARO_WEBHOOK_SECRET not set — webhook is unauthenticated");
+  } else if (secret !== expectedSecret) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

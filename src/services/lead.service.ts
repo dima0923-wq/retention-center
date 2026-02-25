@@ -12,16 +12,23 @@ import type { Prisma } from "@/generated/prisma/client";
 
 export class LeadService {
   static async create(input: LeadCreateInput) {
-    // Deduplicate by email or phone
+    // Deduplicate: prioritize exact match on both fields, then email, then phone
     if (input.email || input.phone) {
-      const existing = await prisma.lead.findFirst({
-        where: {
-          OR: [
-            ...(input.email ? [{ email: input.email }] : []),
-            ...(input.phone ? [{ phone: input.phone }] : []),
-          ],
-        },
-      });
+      let existing = null;
+      if (input.email && input.phone) {
+        // Try exact match on both first (highest confidence)
+        existing = await prisma.lead.findFirst({
+          where: { email: input.email, phone: input.phone },
+        });
+        // Fallback to email-only match (email is more unique than phone)
+        if (!existing) {
+          existing = await prisma.lead.findFirst({ where: { email: input.email } });
+        }
+      } else if (input.email) {
+        existing = await prisma.lead.findFirst({ where: { email: input.email } });
+      } else if (input.phone) {
+        existing = await prisma.lead.findFirst({ where: { phone: input.phone } });
+      }
       if (existing) {
         // If this lead came via a webhook and the existing lead has no webhookId, update it
         if (input.webhookId && !existing.webhookId) {
