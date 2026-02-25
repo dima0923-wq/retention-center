@@ -23,8 +23,8 @@ type WebhookUpdateInput = {
   type?: "zapier" | "facebook" | "generic";
   sourceLabel?: string;
   isActive?: boolean;
-  verifyToken?: string;
-  pageAccessToken?: string;
+  verifyToken?: string | null;
+  pageAccessToken?: string | null;
   config?: Record<string, unknown>;
   campaignId?: string | null;
   sequenceId?: string | null;
