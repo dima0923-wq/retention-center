@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
         if ((ch === "SMS" || ch === "CALL") && !lead.phone) continue;
 
         channelPromises.push(
-          ChannelRouterService.routeContact(lead as any, campaign, ch)
+          ChannelRouterService.routeContact(lead as any, campaign, ch, config.scriptId)
             .then((res) => {
               if ("error" in res) {
                 console.error(`Zapier webhook: Failed ${ch} for lead ${lead.id}:`, res.error);

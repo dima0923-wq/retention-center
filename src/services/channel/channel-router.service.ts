@@ -23,7 +23,8 @@ export class ChannelRouterService {
   static async routeContact(
     lead: Lead,
     campaign: Campaign,
-    channel: string
+    channel: string,
+    overrideScriptId?: string
   ): Promise<{ attemptId: string } | { error: string }> {
     // Check per-lead contact limit
     const meta = campaign.meta ? JSON.parse(campaign.meta as string) : {};
@@ -52,16 +53,19 @@ export class ChannelRouterService {
       return { attemptId: scheduled.attemptId };
     }
 
-    // Check for active A/B test for this campaign + channel
-    let scriptId: string | null = null;
+    // Check for override scriptId (e.g. from Zapier channelConfig)
+    let scriptId: string | null = overrideScriptId ?? null;
     let abTestNote: string | null = null;
 
-    const activeTest = await ABTestService.getActiveTest(campaign.id, channel);
-    if (activeTest) {
-      const { variant, scriptId: selectedScriptId } =
-        await ABTestService.selectVariant(activeTest.id);
-      scriptId = selectedScriptId;
-      abTestNote = `ab_test:${activeTest.id}:variant:${variant}`;
+    if (!scriptId) {
+      // Check for active A/B test for this campaign + channel
+      const activeTest = await ABTestService.getActiveTest(campaign.id, channel);
+      if (activeTest) {
+        const { variant, scriptId: selectedScriptId } =
+          await ABTestService.selectVariant(activeTest.id);
+        scriptId = selectedScriptId;
+        abTestNote = `ab_test:${activeTest.id}:variant:${variant}`;
+      }
     }
 
     // If no A/B test, fall back to default script selection

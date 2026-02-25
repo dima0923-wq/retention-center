@@ -286,6 +286,24 @@ export function createSmsProvider(config: SmsConfigUnion): SmsProvider {
   }
 }
 
+// ─── SMS Dedup Guard ──────────────────────────────────────────────────────────
+// Prevents sending duplicate SMS to the same lead within a time window.
+const SMS_DEDUP_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
+
+async function checkSmsDuplicate(leadId: string): Promise<boolean> {
+  const cutoff = new Date(Date.now() - SMS_DEDUP_WINDOW_MS);
+  const recent = await prisma.contactAttempt.findFirst({
+    where: {
+      leadId,
+      channel: "SMS",
+      startedAt: { gte: cutoff },
+      status: { in: ["PENDING", "IN_PROGRESS", "SUCCESS"] },
+    },
+    select: { id: true },
+  });
+  return recent !== null;
+}
+
 function replaceVariables(template: string, lead: Lead): string {
   return template
     .replace(/\{\{firstName\}\}/g, lead.firstName)
@@ -313,6 +331,11 @@ export async function sendSmsToLead(
   const lead = await prisma.lead.findUnique({ where: { id: leadId } });
   if (!lead) return { error: "Lead not found" };
   if (!lead.phone) return { error: "Lead has no phone number" };
+
+  // Dedup guard: reject if SMS was sent to this lead within the last 5 minutes
+  if (await checkSmsDuplicate(leadId)) {
+    return { error: "Duplicate SMS blocked: lead was already messaged within the last 5 minutes" };
+  }
 
   const attempt = await prisma.contactAttempt.create({
     data: {
