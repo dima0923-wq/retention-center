@@ -237,12 +237,12 @@ export function WebhookFormDialog({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Campaign (optional)</Label>
-              <Select value={campaignId} onValueChange={setCampaignId}>
+              <Select value={campaignId || "none"} onValueChange={(v) => setCampaignId(v === "none" ? "" : v)}>
                 <SelectTrigger>
                   <SelectValue placeholder="None" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">None</SelectItem>
+                  <SelectItem value="none">None</SelectItem>
                   {campaigns.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
                       {c.name}
@@ -253,12 +253,12 @@ export function WebhookFormDialog({
             </div>
             <div className="space-y-2">
               <Label>Sequence (optional)</Label>
-              <Select value={sequenceId} onValueChange={setSequenceId}>
+              <Select value={sequenceId || "none"} onValueChange={(v) => setSequenceId(v === "none" ? "" : v)}>
                 <SelectTrigger>
                   <SelectValue placeholder="None" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">None</SelectItem>
+                  <SelectItem value="none">None</SelectItem>
                   {sequences.map((s) => (
                     <SelectItem key={s.id} value={s.id}>
                       {s.name}
