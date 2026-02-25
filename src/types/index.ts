@@ -70,7 +70,7 @@ export type EmailSequenceStep = {
 
 export type AutoAssignConfig = {
   enabled: boolean;
-  sources?: ("META" | "API" | "MANUAL" | "BULK")[];
+  sources?: ("META" | "API" | "MANUAL" | "BULK" | "WEBHOOK")[];
   maxLeads?: number;
   executionMode?: "parallel" | "sequential";
 };
