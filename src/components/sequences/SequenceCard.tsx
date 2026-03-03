@@ -4,7 +4,8 @@ import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ChannelIcons } from "@/components/campaigns/ChannelSelector";
-import { Users, Clock, TrendingUp } from "lucide-react";
+import { Users, Clock, TrendingUp, Trash2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 
 const statusConfig: Record<
@@ -35,9 +36,10 @@ type SequenceCardProps = {
     _count: { steps: number; enrollments: number };
     conversionRate?: number;
   };
+  onDelete?: (id: string) => void;
 };
 
-export function SequenceCard({ sequence }: SequenceCardProps) {
+export function SequenceCard({ sequence, onDelete }: SequenceCardProps) {
   const channels = (() => {
     try {
       return JSON.parse(sequence.channels);
@@ -56,7 +58,23 @@ export function SequenceCard({ sequence }: SequenceCardProps) {
       <Card className="hover:border-primary/50 transition-colors cursor-pointer">
         <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
           <CardTitle className="text-base font-semibold">{sequence.name}</CardTitle>
-          <Badge variant={statusCfg.variant}>{statusCfg.label}</Badge>
+          <div className="flex items-center gap-2">
+            <Badge variant={statusCfg.variant}>{statusCfg.label}</Badge>
+            {onDelete && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onDelete(sequence.id);
+                }}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           {sequence.description && (

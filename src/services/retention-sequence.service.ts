@@ -177,22 +177,17 @@ export class RetentionSequenceService {
   }
 
   /**
-   * Soft delete (archive) a sequence.
+   * Hard delete a sequence and all related data.
+   * Prisma onDelete: Cascade handles SequenceStep, SequenceEnrollment,
+   * and SequenceStepExecution cleanup automatically.
+   * ZapierWebhookConfig and Webhook references are set to null via onDelete: SetNull.
    */
   static async delete(id: string) {
     const existing = await prisma.retentionSequence.findUnique({ where: { id } });
     if (!existing) return null;
 
-    // Cancel all active and paused enrollments
-    await prisma.sequenceEnrollment.updateMany({
-      where: { sequenceId: id, status: { in: ["ACTIVE", "PAUSED"] } },
-      data: { status: "CANCELLED", completedAt: new Date() },
-    });
-
-    return prisma.retentionSequence.update({
-      where: { id },
-      data: { status: "ARCHIVED" },
-    });
+    // Hard delete — Prisma cascades handle all child records
+    return prisma.retentionSequence.delete({ where: { id } });
   }
 
   /**

@@ -183,18 +183,27 @@ export class CampaignService {
     return parseCampaign(updated);
   }
 
-  static async delete(id: string) {
+  static async delete(id: string, force = false) {
     const campaign = await prisma.campaign.findUnique({ where: { id } });
     if (!campaign) return null;
-    if (campaign.status === "COMPLETED") {
-      throw new Error("Completed campaigns cannot be deleted");
-    }
-    if (campaign.status === "ACTIVE") {
-      throw new Error("Active campaigns cannot be deleted — pause the campaign first");
+
+    if (!force) {
+      if (campaign.status === "COMPLETED") {
+        throw new Error("Completed campaigns cannot be deleted");
+      }
+      if (campaign.status === "ACTIVE") {
+        throw new Error("Active campaigns cannot be deleted — pause the campaign first");
+      }
     }
 
     // Cancel any pending contact attempts before deleting
     await ChannelRouterService.cancelPendingAttempts(id);
+
+    // Unlink KeitaroCampaignMappings (no onDelete cascade — would cause FK error)
+    await prisma.keitaroCampaignMapping.updateMany({
+      where: { campaignId: id },
+      data: { campaignId: null },
+    });
 
     return prisma.campaign.delete({ where: { id } });
   }

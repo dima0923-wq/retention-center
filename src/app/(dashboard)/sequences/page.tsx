@@ -13,6 +13,15 @@ import {
 } from "@/components/ui/select";
 import { SequenceCard } from "@/components/sequences/SequenceCard";
 import { Plus, Search, GitBranch } from "lucide-react";
+import { toast } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 type Sequence = {
   id: string;
@@ -39,6 +48,8 @@ export default function SequencesPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   const fetchSequences = useCallback(async () => {
     setLoading(true);
@@ -58,6 +69,28 @@ export default function SequencesPage() {
       setLoading(false);
     }
   }, [page, search, statusFilter]);
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleteLoading(true);
+    try {
+      const res = await fetch(`/api/sequences/${deleteTarget}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error ?? "Failed to delete sequence");
+      }
+      toast.success("Sequence deleted");
+      fetchSequences();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to delete sequence");
+    } finally {
+      setDeleteLoading(false);
+      setDeleteTarget(null);
+    }
+  };
 
   useEffect(() => {
     fetchSequences();
@@ -130,7 +163,7 @@ export default function SequencesPage() {
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {sequences.data.map((sequence) => (
-              <SequenceCard key={sequence.id} sequence={sequence} />
+              <SequenceCard key={sequence.id} sequence={sequence} onDelete={setDeleteTarget} />
             ))}
           </div>
 
@@ -159,6 +192,29 @@ export default function SequencesPage() {
           )}
         </>
       )}
+      <Dialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Sequence</DialogTitle>
+            <DialogDescription>
+              {(() => {
+                const target = sequences?.data.find((s) => s.id === deleteTarget);
+                return target && target.status === "ACTIVE"
+                  ? "This sequence is currently active and may have enrolled leads. Deleting it cannot be undone. Are you sure?"
+                  : "Are you sure you want to delete this sequence? This action cannot be undone.";
+              })()}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleteLoading}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={deleteLoading}>
+              {deleteLoading ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

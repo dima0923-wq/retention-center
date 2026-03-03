@@ -9,6 +9,7 @@ import { ABTestService } from "@/services/ab-test.service";
 import { SchedulerService } from "../scheduler.service";
 import { EmailTemplateService } from "@/services/email-template.service";
 import { addChannelJob, isRedisConnected } from "@/lib/queue";
+import { OfferLinkService, type OfferLinkSource } from "@/services/offer-link.service";
 
 // Channel priority: EMAIL first, then SMS, then CALL, then PUSH
 const CHANNEL_PRIORITY: Record<string, number> = {
@@ -120,6 +121,42 @@ export class ChannelRouterService {
       return { error: `Script ${scriptId} not found` };
     }
 
+    // Generate Keitaro-tracked offer link and inject into script content
+    if (selectedScript.content && selectedScript.content.includes("{{offerLink}}")) {
+      const sourceMap: Record<string, OfferLinkSource> = {
+        EMAIL: "retention_email",
+        SMS: "retention_sms",
+        CALL: "retention_call",
+      };
+      const offerSource = sourceMap[channel] ?? "retention_email";
+      try {
+        const linkResult = await OfferLinkService.generateOfferLink({
+          source: offerSource,
+          campaignId: campaign.id,
+          leadId: lead.id,
+          leadExternalId: lead.externalId,
+          channel,
+        });
+        selectedScript = {
+          ...selectedScript,
+          content: selectedScript.content.replace(/\{\{offerLink\}\}/g, linkResult.offerLink),
+        };
+        // Store offer link in ContactAttempt for click-to-conversion correlation
+        await prisma.contactAttempt.update({
+          where: { id: attempt.id },
+          data: {
+            result: JSON.stringify({
+              offerLink: linkResult.offerLink,
+              clickId: linkResult.clickId,
+              offerLinkFallback: linkResult.fallback,
+            }),
+          },
+        });
+      } catch (err) {
+        console.warn(`[ChannelRouter] Failed to generate offer link: ${(err as Error).message}`);
+      }
+    }
+
     // Try to enqueue via BullMQ (Redis). Falls back to direct send if unavailable.
     if (isRedisConnected()) {
       const enqueued = await addChannelJob(channel, {
@@ -161,11 +198,28 @@ export class ChannelRouterService {
           if (meta.emailTemplateId) {
             const tpl = await EmailTemplateService.getById(meta.emailTemplateId as string);
             if (tpl && tpl.isActive) {
+              // Generate offer link for email template variables
+              let tplOfferLink = "";
+              if (tpl.htmlBody.includes("{{offerLink}}") || tpl.subject.includes("{{offerLink}}")) {
+                try {
+                  const linkResult = await OfferLinkService.generateOfferLink({
+                    source: "retention_email",
+                    campaignId: campaign.id,
+                    leadId: lead.id,
+                    leadExternalId: lead.externalId,
+                    channel: "EMAIL",
+                  });
+                  tplOfferLink = linkResult.offerLink;
+                } catch (err) {
+                  console.warn(`[ChannelRouter] Failed to generate offer link for template: ${(err as Error).message}`);
+                }
+              }
               const leadVars: Record<string, string> = {
                 firstName: lead.firstName,
                 lastName: lead.lastName,
                 email: lead.email ?? "",
                 phone: lead.phone ?? "",
+                ...(tplOfferLink ? { offerLink: tplOfferLink } : {}),
               };
               const rendered = EmailTemplateService.renderTemplate(tpl, leadVars);
               emailTemplate = {
@@ -346,19 +400,55 @@ export class ChannelRouterService {
         campaignMeta = campaign?.meta;
       }
 
+      // Generate offer link if script content contains {{offerLink}}
+      let scriptForSend = attempt.script;
+      if (scriptForSend.content && scriptForSend.content.includes("{{offerLink}}")) {
+        const qSourceMap: Record<string, OfferLinkSource> = {
+          EMAIL: "retention_email",
+          SMS: "retention_sms",
+          CALL: "retention_call",
+        };
+        try {
+          const linkResult = await OfferLinkService.generateOfferLink({
+            source: qSourceMap[attempt.channel] ?? "retention_email",
+            campaignId: attempt.campaignId ?? undefined,
+            leadId: attempt.lead.id,
+            leadExternalId: attempt.lead.externalId,
+            channel: attempt.channel,
+          });
+          scriptForSend = {
+            ...scriptForSend,
+            content: scriptForSend.content.replace(/\{\{offerLink\}\}/g, linkResult.offerLink),
+          };
+          // Store offer link in ContactAttempt for click-to-conversion correlation
+          await prisma.contactAttempt.update({
+            where: { id: attempt.id },
+            data: {
+              result: JSON.stringify({
+                offerLink: linkResult.offerLink,
+                clickId: linkResult.clickId,
+                offerLinkFallback: linkResult.fallback,
+              }),
+            },
+          });
+        } catch (err) {
+          console.warn(`[ChannelRouter.processQueue] Failed to generate offer link: ${(err as Error).message}`);
+        }
+      }
+
       let result:
         | { providerRef: string }
         | { error: string };
 
       switch (attempt.channel) {
         case "CALL":
-          result = await VapiService.createCall(attempt.lead, attempt.script, campaignMeta);
+          result = await VapiService.createCall(attempt.lead, scriptForSend, campaignMeta);
           break;
         case "SMS":
-          result = await SmsService.sendSms(attempt.lead, attempt.script);
+          result = await SmsService.sendSms(attempt.lead, scriptForSend);
           break;
         case "PUSH":
-          result = await PushService.sendPush(attempt.lead, attempt.script);
+          result = await PushService.sendPush(attempt.lead, scriptForSend);
           break;
         case "EMAIL": {
           if (postmarkConfig?.isActive) {
@@ -368,11 +458,28 @@ export class ChannelRouterService {
             if (qMeta.emailTemplateId) {
               const tpl = await EmailTemplateService.getById(qMeta.emailTemplateId as string);
               if (tpl && tpl.isActive) {
+                // Generate offer link for email template variables
+                let offerLinkUrl = "";
+                if (tpl.htmlBody.includes("{{offerLink}}") || tpl.subject.includes("{{offerLink}}")) {
+                  try {
+                    const linkResult = await OfferLinkService.generateOfferLink({
+                      source: "retention_email",
+                      campaignId: attempt.campaignId ?? undefined,
+                      leadId: attempt.lead.id,
+                      leadExternalId: attempt.lead.externalId,
+                      channel: "EMAIL",
+                    });
+                    offerLinkUrl = linkResult.offerLink;
+                  } catch (err) {
+                    console.warn(`[ChannelRouter.processQueue] Failed to generate offer link for template: ${(err as Error).message}`);
+                  }
+                }
                 const leadVars: Record<string, string> = {
                   firstName: attempt.lead.firstName,
                   lastName: attempt.lead.lastName,
                   email: attempt.lead.email ?? "",
                   phone: attempt.lead.phone ?? "",
+                  ...(offerLinkUrl ? { offerLink: offerLinkUrl } : {}),
                 };
                 const rendered = EmailTemplateService.renderTemplate(tpl, leadVars);
                 qEmailTemplate = {
@@ -386,8 +493,8 @@ export class ChannelRouterService {
             }
 
             result = await PostmarkService.sendEmail(attempt.lead, qEmailTemplate ?? {
-              subject: attempt.script.name,
-              htmlBody: attempt.script.content || "",
+              subject: scriptForSend.name,
+              htmlBody: scriptForSend.content || "",
             });
             if (!("error" in result)) {
               await prisma.contactAttempt.update({
@@ -396,7 +503,7 @@ export class ChannelRouterService {
               });
             }
           } else {
-            result = await InstantlyService.sendEmail(attempt.lead, attempt.script);
+            result = await InstantlyService.sendEmail(attempt.lead, scriptForSend);
           }
           break;
         }

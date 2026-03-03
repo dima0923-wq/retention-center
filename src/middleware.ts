@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { jwtVerify } from "jose";
+import { checkRateLimit, getRateLimitConfig } from "@/lib/rate-limit";
 
 const AUTH_CENTER_URL = "https://ag4.q37fh758g.click";
 const SELF_URL = "https://ag2.q37fh758g.click";
@@ -22,6 +23,14 @@ const PUBLIC_PATHS = [
   "/api/vapi-calls/auto-sync",
 ];
 
+// Paths exempt from rate limiting (webhooks need high throughput)
+const RATE_LIMIT_EXEMPT = [
+  "/api/webhooks/",
+  "/api/health",
+  "/health",
+  "/api/cron/",
+];
+
 function addRequestId(req: NextRequest, response: NextResponse): NextResponse {
   const requestId = req.headers.get("x-request-id") || crypto.randomUUID();
   response.headers.set("X-Request-ID", requestId);
@@ -29,6 +38,29 @@ function addRequestId(req: NextRequest, response: NextResponse): NextResponse {
 }
 
 export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  // Rate limiting for API routes (before auth check)
+  if (pathname.startsWith("/api/") && !RATE_LIMIT_EXEMPT.some((p) => pathname.startsWith(p))) {
+    const ip = getClientIp(request);
+    const serviceKey = request.headers.get("x-service-key");
+    const hasToken = request.cookies.has("ac_access");
+    const isAuthenticated = !!(serviceKey || hasToken);
+
+    const rateLimitKey = serviceKey ? `svc:${serviceKey}` : `ip:${ip}`;
+    const config = getRateLimitConfig(isAuthenticated);
+    const result = checkRateLimit(rateLimitKey, config);
+
+    if (!result.allowed) {
+      const response = NextResponse.json(
+        { error: "Too many requests", retryAfter: result.retryAfter },
+        { status: 429 }
+      );
+      response.headers.set("Retry-After", String(result.retryAfter));
+      return addRequestId(request, response);
+    }
+  }
+
   const response = await innerMiddleware(request);
   return addRequestId(request, response);
 }

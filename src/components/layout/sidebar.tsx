@@ -25,6 +25,7 @@ import {
   Smartphone,
   Webhook,
   TrendingUp,
+  Send,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
@@ -39,6 +40,7 @@ const navItems = [
   { label: "Email Templates", href: "/email-templates", icon: Mail },
   { label: "Integrations", href: "/integrations", icon: Plug, exact: true },
   { label: "Keitaro", href: "/integrations/keitaro", icon: TrendingUp },
+  { label: "Postback Logs", href: "/postback-logs", icon: Send },
   { label: "Webhooks", href: "/webhooks", icon: Webhook },
   { label: "PWA", href: "/pwa", icon: Smartphone },
   { label: "Send a test", href: "/test-send", icon: FlaskConical },

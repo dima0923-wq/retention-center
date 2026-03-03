@@ -52,7 +52,8 @@ export async function DELETE(_req: NextRequest, context: RouteContext) {
     const user = await verifyApiAuth(_req);
     requirePermission(user, 'retention:campaigns:delete');
     const { id } = await context.params;
-    const result = await CampaignService.delete(id);
+    const force = _req.nextUrl.searchParams.get("force") === "true";
+    const result = await CampaignService.delete(id, force);
     if (!result) {
       return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
     }

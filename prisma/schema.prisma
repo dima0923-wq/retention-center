@@ -421,6 +421,25 @@ model SmsDeliveryEvent {
 
 // ─── Webhook Models ─────────────────────────────────────────────────────────
 
+model PostbackLog {
+  id            String   @id @default(cuid())
+  leadId        String?
+  conversionId  String?
+  destination   String   // "traffic_center" or "keitaro"
+  url           String   // full postback URL sent
+  subId         String?
+  status        String   // "success", "failed", "retry"
+  httpStatus    Int?
+  responseBody  String?
+  errorMessage  String?
+  retryCount    Int      @default(0)
+  createdAt     DateTime @default(now())
+
+  @@index([leadId])
+  @@index([destination])
+  @@index([createdAt])
+  @@index([status])
+}
 model Webhook {
   id               String    @id @default(cuid())
   name             String
@@ -447,4 +466,33 @@ model Webhook {
   @@index([isActive])
   @@index([campaignId])
   @@index([sequenceId])
+}
+
+// ─── Persistent Email Job Queue ─────────────────────────────────────────────
+
+model EmailJob {
+  id          String   @id @default(cuid())
+  payload     String   // JSON: { attemptId, leadId, subject, htmlBody, textBody, fromEmail, fromName, tag }
+  status      String   @default("pending") // pending | processing | completed | failed
+  attempts    Int      @default(0)
+  maxAttempts Int      @default(3)
+  error       String?
+  createdAt   DateTime @default(now())
+  processedAt DateTime?
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+// ─── Suppressed Emails (bounce/unsubscribe/complaint) ───────────────────────
+
+model SuppressedEmail {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  reason       String   // hard_bounce | soft_bounce | spam_complaint | unsubscribe | manual
+  source       String   @default("webhook") // webhook | api | manual
+  suppressedAt DateTime @default(now())
+
+  @@index([email])
+  @@index([reason])
 }

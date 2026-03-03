@@ -3,8 +3,8 @@ import { timingSafeEqual as _timingSafeEqual } from "crypto";
 import { prisma } from "@/lib/db";
 import { ABTestService } from "@/services/ab-test.service";
 import { RetentionSequenceService } from "@/services/retention-sequence.service";
-import { MetaCapiService } from "@/services/meta-capi.service";
 import { LeadScoringService } from "@/services/lead-scoring.service";
+import { OutboundPostbackService } from "@/services/outbound-postback.service";
 
 /** Constant-time string comparison to prevent timing attacks */
 function timingSafeEqual(a: string, b: string): boolean {
@@ -37,9 +37,10 @@ interface KeitaroParams {
 async function handlePostback(params: KeitaroParams): Promise<{ id: string } | NextResponse> {
   const { sub_id, status = "lead", payout, click_id, campaign_id, campaign_name } = params;
 
-  // Idempotency: avoid duplicate conversions for same sub_id + source
+  // Idempotency: avoid duplicate conversions for same sub_id + source + status
+  // Note: lead and sale are different events for the same sub_id — do NOT deduplicate across statuses
   if (sub_id) {
-    const existing = await prisma.conversion.findFirst({ where: { subId: sub_id, source: "keitaro" } });
+    const existing = await prisma.conversion.findFirst({ where: { subId: sub_id, source: "keitaro", status } });
     if (existing) return NextResponse.json({ status: "duplicate", id: existing.id });
   }
 
@@ -102,21 +103,8 @@ async function handlePostback(params: KeitaroParams): Promise<{ id: string } | N
     },
   });
 
-  // Fire Meta CAPI event if lead found
-  if (leadId) {
-    const lead = await prisma.lead.findUnique({ where: { id: leadId } });
-    if (lead) {
-      if (status === "sale") {
-        MetaCapiService.sendConversionEvent(lead, conversion.revenue, conversion.id).catch((err) => {
-          console.error("Meta CAPI conversion event failed:", err);
-        });
-      } else if (status === "lead" && lead.source === "META") {
-        MetaCapiService.sendLeadEvent(lead).catch((err) => {
-          console.error("Meta CAPI lead event failed:", err);
-        });
-      }
-    }
-  }
+  // CAPI events are now fired by Traffic Center (ag3) as the single source of truth.
+  // RC sends conversions to TC via OutboundPostbackService, and TC fires CAPI.
 
   // Record A/B test outcome if the contact attempt was part of a test
   if (contactAttemptId) {
@@ -159,6 +147,14 @@ async function handlePostback(params: KeitaroParams): Promise<{ id: string } | N
       RetentionSequenceService.markConverted(leadId).catch((err) => {
         console.error("Failed to mark sequence enrollments as converted:", err);
       });
+
+      // Fire outbound postbacks to Traffic Center and Keitaro
+      const convertedLead = await prisma.lead.findUnique({ where: { id: leadId } });
+      if (convertedLead) {
+        OutboundPostbackService.sendConversionPostback(convertedLead, conversion).catch((err) => {
+          console.error("[OutboundPostback] Failed to send conversion postback:", err);
+        });
+      }
     } else if (status === "reject") {
       await prisma.lead.update({
         where: { id: leadId },
